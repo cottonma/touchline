@@ -1,0 +1,19 @@
+{
+  "name": "touchline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Touchline - Digital Coaching Companion for Grassroots Youth Football",
+  "scripts": {
+    "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npx tsx watch src/app.ts",
+    "dev:client": "cd client && npx vite --host",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "cd server && npx tsc",
+    "build:client": "cd client && npx vite build",
+    "db:migrate": "cd server && npx tsx src/db/migrate.ts",
+    "db:seed": "cd server && npx tsx src/db/seed-all.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
