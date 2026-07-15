@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["cd client && npm install && cd ../server && npm install"]
+
+[phases.build]
+cmds = ["cd client && npx vite build"]
+
+[start]
+cmd = "cd server && npx tsx src/app.ts"

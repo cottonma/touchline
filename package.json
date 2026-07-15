@@ -7,8 +7,8 @@
     "dev": "npx concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npx tsx watch src/app.ts",
     "dev:client": "cd client && npx vite --host",
-    "build": "npm run build:server && npm run build:client",
-    "build:server": "cd server && npx tsc",
+    "build": "cd client && npm install && npx vite build && cd ../server && npm install",
+    "start": "cd server && npx tsx src/app.ts",
     "build:client": "cd client && npx vite build",
     "db:migrate": "cd server && npx tsx src/db/migrate.ts",
     "db:seed": "cd server && npx tsx src/db/seed-all.ts"
