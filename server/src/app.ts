@@ -19,7 +19,38 @@ const __dirname = path.dirname(__filename);
 // Auto-setup: ensure tables exist and admin user is seeded
 async function autoSetup() {
   const { connection } = await import('./db/index.js');
+  const { readFileSync, readdirSync, existsSync } = await import('fs');
+  const migPath = await import('path');
   
+  // Run SQL migrations first (creates all base tables)
+  const migrationsDir = migPath.join(__dirname, 'db/migrations');
+  
+  connection.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  if (existsSync(migrationsDir)) {
+    const applied = connection.prepare('SELECT name FROM _migrations ORDER BY id').all() as { name: string }[];
+    const appliedSet = new Set(applied.map((m) => m.name));
+    const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+
+    for (const file of files) {
+      if (appliedSet.has(file)) continue;
+      try {
+        const sql = readFileSync(migPath.join(migrationsDir, file), 'utf-8');
+        connection.exec(sql);
+        connection.prepare('INSERT INTO _migrations (name) VALUES (?)').run(file);
+        console.log(`  ✅ Migration applied: ${file}`);
+      } catch (err: any) {
+        console.error(`  ⚠️ Migration ${file}: ${err.message}`);
+      }
+    }
+  }
+
   // Create auth tables if they don't exist
   connection.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -39,7 +70,21 @@ async function autoSetup() {
       role TEXT NOT NULL DEFAULT 'coach',
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS opposition_notes (
+      id TEXT PRIMARY KEY,
+      opponent TEXT NOT NULL,
+      fixture_id TEXT REFERENCES fixtures(id),
+      notes TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
+
+  // Add columns that may be missing
+  try { connection.exec(`ALTER TABLE seasons ADD COLUMN formation TEXT`); } catch {}
+  try { connection.exec(`ALTER TABLE training_sessions ADD COLUMN date TEXT`); } catch {}
+  try { connection.exec(`ALTER TABLE training_attendance ADD COLUMN session_id TEXT`); } catch {}
+  try { connection.exec(`ALTER TABLE players ADD COLUMN tertiary_position TEXT`); } catch {}
 
   // Seed admin user if not exists
   const existingAdmin = db.select().from(users).where(eq(users.email, 'admin@touchline.app')).get();
