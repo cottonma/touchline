@@ -1,0 +1,301 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Users, UserPlus, Shield, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
+
+interface UserTeam {
+  clubId: string;
+  clubName: string;
+}
+
+interface UserRecord {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  createdAt: string;
+  teams: UserTeam[];
+}
+
+interface Club {
+  id: string;
+  name: string;
+  teamName: string | null;
+}
+
+/**
+ * Manage Users page — admin only.
+ * Lists all users and provides a form to create new coach/admin accounts.
+ */
+export function ManageUsersPage() {
+  const { isAdmin } = useAuth();
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form state
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('coach');
+  const [clubId, setClubId] = useState('');
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const data = await api.get<UserRecord[]>('/auth/users');
+      setUsers(data);
+    } catch (err) {
+      console.error('Failed to fetch users', err);
+    }
+  }, []);
+
+  const fetchClubs = useCallback(async () => {
+    try {
+      const data = await api.get<Club[]>('/auth/clubs');
+      setClubs(data);
+    } catch (err) {
+      console.error('Failed to fetch clubs', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    Promise.all([fetchUsers(), fetchClubs()]).finally(() => setIsLoading(false));
+  }, [isAdmin, fetchUsers, fetchClubs]);
+
+  const resetForm = () => {
+    setEmail('');
+    setFirstName('');
+    setLastName('');
+    setPassword('');
+    setRole('coach');
+    setClubId('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsSubmitting(true);
+
+    try {
+      await api.post('/auth/register', {
+        email,
+        password,
+        firstName,
+        lastName,
+        role,
+        clubId: clubId || undefined,
+      });
+
+      setSuccessMessage(
+        `User "${firstName} ${lastName}" created successfully. Temporary password: ${password}`
+      );
+      resetForm();
+      setShowForm(false);
+      await fetchUsers();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to create user');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 403 — not admin
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <AlertCircle className="w-16 h-16 text-red-400 mb-4" />
+        <h1 className="text-2xl font-bold text-slate-100 mb-2">Access Denied</h1>
+        <p className="text-slate-400">You do not have permission to view this page.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-slate-400">Loading users...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Shield className="w-6 h-6 text-blue-400" />
+          <h1 className="text-2xl font-bold text-slate-100">Manage Users</h1>
+        </div>
+        <Button onClick={() => setShowForm(!showForm)}>
+          <UserPlus className="w-4 h-4 mr-2" />
+          {showForm ? 'Cancel' : 'Add User'}
+        </Button>
+      </div>
+
+      {/* Success / Error messages */}
+      {successMessage && (
+        <div className="bg-green-900/30 border border-green-700 text-green-300 px-4 py-3 rounded-lg">
+          {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="bg-red-900/30 border border-red-700 text-red-300 px-4 py-3 rounded-lg">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* Create User Form */}
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Create New User
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="coach@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Temporary Password</Label>
+                <Input
+                  id="password"
+                  type="text"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Set a temporary password"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  placeholder="Smith"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  id="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <option value="coach">Coach</option>
+                  <option value="admin">Admin</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="clubId">Assign to Club</Label>
+                <Select
+                  id="clubId"
+                  value={clubId}
+                  onChange={(e) => setClubId(e.target.value)}
+                >
+                  <option value="">— No club —</option>
+                  {clubs.map((club) => (
+                    <option key={club.id} value={club.id}>
+                      {club.name}{club.teamName ? ` (${club.teamName})` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Creating...' : 'Create User'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Users List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            All Users ({users.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {users.length === 0 ? (
+            <p className="text-slate-400 text-center py-4">No users found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left py-3 px-2 text-slate-400 font-medium">Name</th>
+                    <th className="text-left py-3 px-2 text-slate-400 font-medium">Email</th>
+                    <th className="text-left py-3 px-2 text-slate-400 font-medium">Role</th>
+                    <th className="text-left py-3 px-2 text-slate-400 font-medium">Club/Team</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id} className="border-b border-slate-800 hover:bg-slate-800/50">
+                      <td className="py-3 px-2 text-slate-200">
+                        {user.firstName} {user.lastName}
+                      </td>
+                      <td className="py-3 px-2 text-slate-300">{user.email}</td>
+                      <td className="py-3 px-2">
+                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                          {user.role}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-2 text-slate-300">
+                        {user.teams.length > 0
+                          ? user.teams.map((t) => t.clubName).join(', ')
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

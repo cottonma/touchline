@@ -9,6 +9,29 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
  */
 
 // ============================================================
+// USERS & AUTH
+// ============================================================
+
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  role: text('role').notNull().default('coach'), // 'admin' | 'coach'
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const userTeams = sqliteTable('user_teams', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  clubId: text('club_id').notNull().references(() => clubs.id),
+  role: text('role').notNull().default('coach'), // role within this team
+  createdAt: text('created_at').notNull(),
+});
+
+// ============================================================
 // CLUB & SEASON
 // ============================================================
 

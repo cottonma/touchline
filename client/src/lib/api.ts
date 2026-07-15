@@ -1,9 +1,11 @@
 /**
  * API client for communicating with the Touchline backend.
  * All API calls go through this module for consistency.
+ * Includes Authorization header from stored token.
  */
 
 const API_BASE = '/api';
+const TOKEN_KEY = 'touchline_token';
 
 interface ApiError {
   error: string;
@@ -17,20 +19,44 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  private getToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+    const token = this.getToken();
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
       ...options,
+      headers,
     };
 
     const response = await fetch(url, config);
+
+    // Handle 401 — clear token and redirect to login
+    if (response.status === 401) {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('touchline_user');
+      localStorage.removeItem('touchline_active_club');
+      // Only redirect if not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+      throw new Error('Session expired. Please log in again.');
+    }
 
     if (!response.ok) {
       const error: ApiError = await response.json().catch(() => ({

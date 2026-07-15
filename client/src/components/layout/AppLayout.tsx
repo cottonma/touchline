@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { MobileMenu } from './MobileMenu';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Root application layout — football-themed.
@@ -10,6 +11,8 @@ import { MobileMenu } from './MobileMenu';
  * - Desktop: Dark fixed sidebar + dark header
  */
 export function AppLayout() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header — dark navy with green accent */}
@@ -25,6 +28,24 @@ export function AppLayout() {
             <span className="text-xl">⚽</span>
             <h1 className="logo-text text-lg">Touchline</h1>
           </div>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* User info (visible on all screens) */}
+          {user && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-300 hidden sm:inline">
+                {user.firstName}
+              </span>
+              <button
+                onClick={logout}
+                className="text-xs text-slate-400 hover:text-white transition-colors md:hidden"
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </header>
 

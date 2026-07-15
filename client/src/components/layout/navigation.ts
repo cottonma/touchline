@@ -11,6 +11,7 @@ import {
   FileText,
   Bot,
   Settings,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -47,6 +48,7 @@ export const navItems: NavItem[] = [
   { label: 'Reports', path: '/reports', icon: FileText, primary: false },
   { label: 'AI Coach', path: '/ai-coach', icon: Bot, primary: false },
   { label: 'Settings', path: '/settings', icon: Settings, primary: false },
+  { label: 'Manage Users', path: '/manage-users', icon: Shield, primary: false },
 ];
 
 /** Items shown in mobile bottom navigation bar */
@@ -73,7 +75,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Tools',
     items: navItems.filter((i) =>
-      ['/reports', '/ai-coach', '/settings'].includes(i.path)
+      ['/reports', '/ai-coach', '/settings', '/manage-users'].includes(i.path)
     ),
   },
 ];

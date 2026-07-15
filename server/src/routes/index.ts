@@ -1,4 +1,6 @@
 import type { Express } from 'express';
+import { authRoutes } from './auth.routes.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { playerRoutes } from './player.routes.js';
 import { fixtureRoutes } from './fixture.routes.js';
 import { availabilityRoutes } from './availability.routes.js';
@@ -16,9 +18,16 @@ import { oppositionNotesRoutes } from './opposition-notes.routes.js';
 
 /**
  * Register all API routes.
- * Routes will be added here as features are built.
+ * Auth routes are public (login), all other routes require authentication.
  */
 export function setupRoutes(app: Express): void {
+  // Auth routes (login is public, me/register use their own middleware)
+  app.use('/api/auth', authRoutes);
+
+  // Apply auth middleware to all routes below this point
+  app.use('/api', authMiddleware);
+
+  // Protected routes
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/players', playerRoutes);
   app.use('/api/fixtures', fixtureRoutes);
