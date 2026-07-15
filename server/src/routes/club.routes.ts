@@ -1,16 +1,62 @@
 import { Router } from 'express';
+import { nanoid } from 'nanoid';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { db } from '../db/index.js';
-import { clubs } from '../db/schema.js';
+import { clubs, seasons } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 /**
  * Club API Routes
  *
+ * POST  /api/clubs     - Create a new club + default season
  * PATCH /api/clubs/:id - Update club fields (name, teamName, ageGroup)
  */
 
 const router = Router();
+
+router.post('/', asyncHandler(async (req, res) => {
+  const { name, teamName, ageGroup } = req.body;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    res.status(400).json({ error: 'name is required and must be a non-empty string' });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const clubId = nanoid();
+  const currentYear = new Date().getFullYear();
+
+  // Create the club
+  db.insert(clubs).values({
+    id: clubId,
+    name: name.trim(),
+    teamName: teamName ? String(teamName).trim() : null,
+    ageGroup: ageGroup || null,
+    createdAt: now,
+    updatedAt: now,
+  } as any).run();
+
+  // Create a default season for the new club
+  const seasonId = nanoid();
+  db.insert(seasons).values({
+    id: seasonId,
+    clubId,
+    name: `${currentYear}/${currentYear + 1} Season`,
+    startDate: `${currentYear}-08-01`,
+    endDate: `${currentYear + 1}-06-30`,
+    format: '7v7',
+    matchDurationMinutes: 48,
+    periods: 4,
+    maxSquadSize: 12,
+    formation: '2-3-1',
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  } as any).run();
+
+  const created = db.select().from(clubs).where(eq(clubs.id, clubId)).get();
+  res.status(201).json({ data: created });
+}));
 
 router.patch('/:id', asyncHandler(async (req, res) => {
   const id = req.params.id as string;

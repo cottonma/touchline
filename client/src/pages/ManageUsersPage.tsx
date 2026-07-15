@@ -51,6 +51,9 @@ export function ManageUsersPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('coach');
   const [clubId, setClubId] = useState('');
+  const [createNewTeam, setCreateNewTeam] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('');
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -82,6 +85,9 @@ export function ManageUsersPage() {
     setPassword('');
     setRole('coach');
     setClubId('');
+    setCreateNewTeam(false);
+    setNewTeamName('');
+    setNewTeamAgeGroup('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,13 +97,30 @@ export function ManageUsersPage() {
     setIsSubmitting(true);
 
     try {
+      let assignClubId = clubId || undefined;
+
+      // If creating a new team, call POST /api/clubs first
+      if (createNewTeam) {
+        if (!newTeamName.trim()) {
+          setErrorMessage('Team name is required when creating a new team');
+          setIsSubmitting(false);
+          return;
+        }
+        const clubRes = await api.post<{ data: Club }>('/clubs', {
+          name: newTeamName.trim(),
+          teamName: newTeamName.trim(),
+          ageGroup: newTeamAgeGroup || undefined,
+        });
+        assignClubId = clubRes.data.id;
+      }
+
       await api.post('/auth/register', {
         email,
         password,
         firstName,
         lastName,
         role,
-        clubId: clubId || undefined,
+        clubId: assignClubId,
       });
 
       setSuccessMessage(
@@ -105,7 +128,7 @@ export function ManageUsersPage() {
       );
       resetForm();
       setShowForm(false);
-      await fetchUsers();
+      await Promise.all([fetchUsers(), fetchClubs()]);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to create user');
     } finally {
@@ -226,18 +249,63 @@ export function ManageUsersPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="clubId">Assign to Club</Label>
-                <Select
-                  id="clubId"
-                  value={clubId}
-                  onChange={(e) => setClubId(e.target.value)}
-                >
-                  <option value="">— No club —</option>
-                  {clubs.map((club) => (
-                    <option key={club.id} value={club.id}>
-                      {club.name}{club.teamName ? ` (${club.teamName})` : ''}
-                    </option>
-                  ))}
-                </Select>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id="createNewTeam"
+                    checked={createNewTeam}
+                    onChange={(e) => {
+                      setCreateNewTeam(e.target.checked);
+                      if (e.target.checked) setClubId('');
+                    }}
+                    className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
+                  />
+                  <Label htmlFor="createNewTeam" className="text-sm text-slate-300 cursor-pointer">
+                    Create new team
+                  </Label>
+                </div>
+                {!createNewTeam ? (
+                  <Select
+                    id="clubId"
+                    value={clubId}
+                    onChange={(e) => setClubId(e.target.value)}
+                  >
+                    <option value="">— No club —</option>
+                    {clubs.map((club) => (
+                      <option key={club.id} value={club.id}>
+                        {club.name}{club.teamName ? ` (${club.teamName})` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <div className="space-y-3">
+                    <Input
+                      id="newTeamName"
+                      type="text"
+                      value={newTeamName}
+                      onChange={(e) => setNewTeamName(e.target.value)}
+                      placeholder="e.g. Leeds City Juniors Titans"
+                      required={createNewTeam}
+                    />
+                    <Select
+                      id="newTeamAgeGroup"
+                      value={newTeamAgeGroup}
+                      onChange={(e) => setNewTeamAgeGroup(e.target.value)}
+                    >
+                      <option value="">— Age group (optional) —</option>
+                      <option value="U7">U7</option>
+                      <option value="U8">U8</option>
+                      <option value="U9">U9</option>
+                      <option value="U10">U10</option>
+                      <option value="U11">U11</option>
+                      <option value="U12">U12</option>
+                      <option value="U13">U13</option>
+                      <option value="U14">U14</option>
+                      <option value="U15">U15</option>
+                      <option value="U16">U16</option>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="md:col-span-2">
                 <Button type="submit" disabled={isSubmitting}>
