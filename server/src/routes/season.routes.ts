@@ -14,16 +14,16 @@ import { eq } from 'drizzle-orm';
 const router = Router();
 
 router.get('/', asyncHandler(async (_req, res) => {
-  const allSeasons = db.select().from(seasons).all();
+  const allSeasons = await db.select().from(seasons);
   res.json({ data: allSeasons });
 }));
 
 router.patch('/:id', asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { format, matchDurationMinutes, periods, formation, maxSquadSize } = req.body;
 
   // Validate season exists
-  const existing = db.select().from(seasons).where(eq(seasons.id, id)).get();
+  const [existing] = await db.select().from(seasons).where(eq(seasons.id, id)).limit(1);
   if (!existing) {
     res.status(404).json({ error: 'Season not found' });
     return;
@@ -80,9 +80,9 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     updates.formation = formation;
   }
 
-  db.update(seasons).set(updates).where(eq(seasons.id, id)).run();
+  await db.update(seasons).set(updates).where(eq(seasons.id, id));
 
-  const updated = db.select().from(seasons).where(eq(seasons.id, id)).get();
+  const [updated] = await db.select().from(seasons).where(eq(seasons.id, id)).limit(1);
   res.json({ data: updated });
 }));
 

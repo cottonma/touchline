@@ -26,34 +26,30 @@ router.get('/:id/stats', asyncHandler(async (req, res) => {
   const id = req.params.id as string;
 
   // Count training sessions attended by this player
-  const attendedResult = db
+  const [attendedResult] = await db
     .select({ count: sql<number>`count(*)` })
     .from(trainingAttendance)
-    .where(and(eq(trainingAttendance.playerId, id), eq(trainingAttendance.attended, true)))
-    .get();
+    .where(and(eq(trainingAttendance.playerId, id), eq(trainingAttendance.attended, true)));
 
   // Count total training sessions
-  const totalSessionsResult = db
+  const [totalSessionsResult] = await db
     .select({ count: sql<number>`count(*)` })
-    .from(trainingSessions)
-    .get();
+    .from(trainingSessions);
 
   // Count matches played (total_minutes > 0)
-  const matchesPlayedResult = db
+  const [matchesPlayedResult] = await db
     .select({ count: sql<number>`count(*)` })
     .from(playingTime)
-    .where(and(eq(playingTime.playerId, id), sql`${playingTime.totalMinutes} > 0`))
-    .get();
+    .where(and(eq(playingTime.playerId, id), sql`${playingTime.totalMinutes} > 0`));
 
   // Sum outfield and goalkeeper minutes
-  const minutesResult = db
+  const [minutesResult] = await db
     .select({
       totalOutfieldMinutes: sql<number>`coalesce(sum(${playingTime.outfieldMinutes}), 0)`,
       totalGkMinutes: sql<number>`coalesce(sum(${playingTime.goalkeeperMinutes}), 0)`,
     })
     .from(playingTime)
-    .where(eq(playingTime.playerId, id))
-    .get();
+    .where(eq(playingTime.playerId, id));
 
   res.json({
     data: {

@@ -1,10 +1,10 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { pgTable, text, integer, boolean } from 'drizzle-orm/pg-core';
 
 /**
- * Touchline Database Schema
+ * Touchline Database Schema (PostgreSQL)
  * 
- * All IDs use nanoid (text) for portability and future migration to PostgreSQL.
- * Timestamps are stored as ISO 8601 strings.
+ * All IDs use nanoid (text) for portability.
+ * Timestamps are stored as ISO 8601 strings (TEXT).
  * JSON fields are stored as TEXT and parsed at the application layer.
  */
 
@@ -12,7 +12,7 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 // USERS & AUTH
 // ============================================================
 
-export const users = sqliteTable('users', {
+export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
@@ -23,7 +23,7 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at').notNull(),
 });
 
-export const userTeams = sqliteTable('user_teams', {
+export const userTeams = pgTable('user_teams', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
   clubId: text('club_id').notNull().references(() => clubs.id),
@@ -35,7 +35,7 @@ export const userTeams = sqliteTable('user_teams', {
 // CLUB & SEASON
 // ============================================================
 
-export const clubs = sqliteTable('clubs', {
+export const clubs = pgTable('clubs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   teamName: text('team_name'),
@@ -50,7 +50,7 @@ export const clubs = sqliteTable('clubs', {
   updatedAt: text('updated_at').notNull(),
 });
 
-export const seasons = sqliteTable('seasons', {
+export const seasons = pgTable('seasons', {
   id: text('id').primaryKey(),
   clubId: text('club_id').notNull().references(() => clubs.id),
   name: text('name').notNull(),
@@ -61,7 +61,7 @@ export const seasons = sqliteTable('seasons', {
   periods: integer('periods').notNull(), // 2 (halves) or 4 (quarters)
   maxSquadSize: integer('max_squad_size').notNull(),
   formation: text('formation'), // e.g. "2-3-1", nullable
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -70,7 +70,7 @@ export const seasons = sqliteTable('seasons', {
 // PLAYERS
 // ============================================================
 
-export const players = sqliteTable('players', {
+export const players = pgTable('players', {
   id: text('id').primaryKey(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
@@ -80,13 +80,13 @@ export const players = sqliteTable('players', {
   primaryPosition: text('primary_position').notNull(), // "GK" | "CB" | "LB" | "RB" | "CM" | "LM" | "RM" | "CF"
   secondaryPosition: text('secondary_position'),
   tertiaryPosition: text('tertiary_position'),
-  isGkVolunteer: integer('is_gk_volunteer', { mode: 'boolean' }).notNull().default(false),
+  isGkVolunteer: boolean('is_gk_volunteer').notNull().default(false),
   photoUrl: text('photo_url'),
   parentName: text('parent_name'),
   parentEmail: text('parent_email'),
   parentPhone: text('parent_phone'),
   medicalNotes: text('medical_notes'),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -95,7 +95,7 @@ export const players = sqliteTable('players', {
 // FIXTURES
 // ============================================================
 
-export const fixtures = sqliteTable('fixtures', {
+export const fixtures = pgTable('fixtures', {
   id: text('id').primaryKey(),
   seasonId: text('season_id').notNull().references(() => seasons.id),
   type: text('type').notNull(), // "match" | "training" | "friendly" | "tournament"
@@ -115,7 +115,7 @@ export const fixtures = sqliteTable('fixtures', {
 // AVAILABILITY
 // ============================================================
 
-export const availability = sqliteTable('availability', {
+export const availability = pgTable('availability', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   playerId: text('player_id').notNull().references(() => players.id),
@@ -128,14 +128,14 @@ export const availability = sqliteTable('availability', {
 // TEAM SELECTION
 // ============================================================
 
-export const teamSelections = sqliteTable('team_selections', {
+export const teamSelections = pgTable('team_selections', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   playerId: text('player_id').notNull().references(() => players.id),
-  isSelected: integer('is_selected', { mode: 'boolean' }).notNull().default(false),
+  isSelected: boolean('is_selected').notNull().default(false),
   position: text('position'), // Position assigned for this match
-  isCaptain: integer('is_captain', { mode: 'boolean' }).notNull().default(false),
-  isGk: integer('is_gk', { mode: 'boolean' }).notNull().default(false),
+  isCaptain: boolean('is_captain').notNull().default(false),
+  isGk: boolean('is_gk').notNull().default(false),
   gkPeriods: text('gk_periods'), // JSON array of period numbers when in goal, e.g. "[1,2]"
   notes: text('notes'),
   createdAt: text('created_at').notNull(),
@@ -145,7 +145,7 @@ export const teamSelections = sqliteTable('team_selections', {
 // MATCH EVENTS & PLAYING TIME
 // ============================================================
 
-export const matchEvents = sqliteTable('match_events', {
+export const matchEvents = pgTable('match_events', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   playerId: text('player_id').notNull().references(() => players.id),
@@ -156,7 +156,7 @@ export const matchEvents = sqliteTable('match_events', {
   createdAt: text('created_at').notNull(),
 });
 
-export const playingTime = sqliteTable('playing_time', {
+export const playingTime = pgTable('playing_time', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   playerId: text('player_id').notNull().references(() => players.id),
@@ -172,7 +172,7 @@ export const playingTime = sqliteTable('playing_time', {
 // MATCH RESULTS
 // ============================================================
 
-export const matchResults = sqliteTable('match_results', {
+export const matchResults = pgTable('match_results', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   goalsFor: integer('goals_for').notNull().default(0),
@@ -188,7 +188,7 @@ export const matchResults = sqliteTable('match_results', {
 // GOALS (individual goal records for stats)
 // ============================================================
 
-export const goals = sqliteTable('goals', {
+export const goals = pgTable('goals', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   scorerId: text('scorer_id').notNull().references(() => players.id),
@@ -203,7 +203,7 @@ export const goals = sqliteTable('goals', {
 // COACHING POLICIES
 // ============================================================
 
-export const policies = sqliteTable('policies', {
+export const policies = pgTable('policies', {
   id: text('id').primaryKey(),
   category: text('category').notNull(), // "philosophy" | "playing_time" | "positions" | "goalkeeper" | "match_objective" | "statistics" | "recognition" | "ai_behaviour"
   key: text('key').notNull(),
@@ -216,7 +216,7 @@ export const policies = sqliteTable('policies', {
 // PLAYER DEVELOPMENT
 // ============================================================
 
-export const developmentGoals = sqliteTable('development_goals', {
+export const developmentGoals = pgTable('development_goals', {
   id: text('id').primaryKey(),
   playerId: text('player_id').notNull().references(() => players.id),
   seasonId: text('season_id').references(() => seasons.id),
@@ -231,7 +231,7 @@ export const developmentGoals = sqliteTable('development_goals', {
   updatedAt: text('updated_at').notNull(),
 });
 
-export const developmentObservations = sqliteTable('development_observations', {
+export const developmentObservations = pgTable('development_observations', {
   id: text('id').primaryKey(),
   goalId: text('goal_id').references(() => developmentGoals.id),
   playerId: text('player_id').notNull().references(() => players.id),
@@ -245,13 +245,13 @@ export const developmentObservations = sqliteTable('development_observations', {
 // DEVELOPMENT GOAL LIBRARY (pre-populated templates)
 // ============================================================
 
-export const developmentGoalLibrary = sqliteTable('development_goal_library', {
+export const developmentGoalLibrary = pgTable('development_goal_library', {
   id: text('id').primaryKey(),
   category: text('category').notNull(), // "technical" | "tactical" | "physical" | "psychological"
   positionGroup: text('position_group').notNull(), // "goalkeeper" | "defence" | "central_midfield" | "winger" | "striker" | "all"
   title: text('title').notNull(),
   description: text('description'),
-  isCustom: integer('is_custom', { mode: 'boolean' }).notNull().default(false),
+  isCustom: boolean('is_custom').notNull().default(false),
   createdAt: text('created_at').notNull(),
 });
 
@@ -259,7 +259,7 @@ export const developmentGoalLibrary = sqliteTable('development_goal_library', {
 // TRAINING SESSIONS
 // ============================================================
 
-export const trainingSessions = sqliteTable('training_sessions', {
+export const trainingSessions = pgTable('training_sessions', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').references(() => fixtures.id),
   date: text('date'), // ISO date string for standalone sessions
@@ -272,12 +272,12 @@ export const trainingSessions = sqliteTable('training_sessions', {
   updatedAt: text('updated_at').notNull(),
 });
 
-export const trainingAttendance = sqliteTable('training_attendance', {
+export const trainingAttendance = pgTable('training_attendance', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').references(() => fixtures.id),
   sessionId: text('session_id').references(() => trainingSessions.id),
   playerId: text('player_id').notNull().references(() => players.id),
-  attended: integer('attended', { mode: 'boolean' }).notNull().default(false),
+  attended: boolean('attended').notNull().default(false),
   reason: text('reason'),
 });
 
@@ -285,11 +285,11 @@ export const trainingAttendance = sqliteTable('training_attendance', {
 // SUBSTITUTION PLANS (generated by engine, editable by coach)
 // ============================================================
 
-export const substitutionPlans = sqliteTable('substitution_plans', {
+export const substitutionPlans = pgTable('substitution_plans', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   plan: text('plan').notNull(), // JSON: array of periods with on/off pitch players and positions
-  isApproved: integer('is_approved', { mode: 'boolean' }).notNull().default(false),
+  isApproved: boolean('is_approved').notNull().default(false),
   generatedBy: text('generated_by').notNull().default('engine'), // "engine" | "ai" | "coach"
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -299,7 +299,7 @@ export const substitutionPlans = sqliteTable('substitution_plans', {
 // OPPOSITION NOTES
 // ============================================================
 
-export const oppositionNotes = sqliteTable('opposition_notes', {
+export const oppositionNotes = pgTable('opposition_notes', {
   id: text('id').primaryKey(),
   opponent: text('opponent').notNull(),
   fixtureId: text('fixture_id').references(() => fixtures.id),

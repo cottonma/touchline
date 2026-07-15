@@ -15,22 +15,22 @@ async function seedClubAndSeason() {
   const currentYear = new Date().getFullYear();
 
   // Check if default club already exists
-  const existingClub = db.select().from(clubs).where(eq(clubs.id, 'club_default')).get();
+  const [existingClub] = await db.select().from(clubs).where(eq(clubs.id, 'club_default')).limit(1);
   if (!existingClub) {
-    db.insert(clubs).values({
+    await db.insert(clubs).values({
       id: 'club_default',
       name: 'My Club',
       teamName: 'First Team',
       ageGroup: 'U10',
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
   }
 
   // Check if default season already exists
-  const existingSeason = db.select().from(seasons).where(eq(seasons.id, 'season_default')).get();
+  const [existingSeason] = await db.select().from(seasons).where(eq(seasons.id, 'season_default')).limit(1);
   if (!existingSeason) {
-    db.insert(seasons).values({
+    await db.insert(seasons).values({
       id: 'season_default',
       clubId: 'club_default',
       name: `${currentYear}/${currentYear + 1} Season`,
@@ -44,7 +44,7 @@ async function seedClubAndSeason() {
       isActive: true,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    });
   }
 }
 

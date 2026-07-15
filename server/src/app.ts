@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 import dotenv from 'dotenv';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/error-handler.js';
-import { db } from './db/index.js';
+import { db, sql } from './db/index.js';
 import { users, userTeams, clubs, seasons } from './db/schema.js';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
@@ -18,32 +18,31 @@ const __dirname = path.dirname(__filename);
 
 // Auto-setup: ensure tables exist and admin user is seeded
 async function autoSetup() {
-  const { connection } = await import('./db/index.js');
   const { readFileSync, readdirSync, existsSync } = await import('fs');
   const migPath = await import('path');
   
   // Run SQL migrations first (creates all base tables)
   const migrationsDir = migPath.join(__dirname, 'db/migrations');
   
-  connection.exec(`
+  await sql.unsafe(`
     CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      applied_at TEXT NOT NULL DEFAULT NOW()::TEXT
     );
   `);
 
   if (existsSync(migrationsDir)) {
-    const applied = connection.prepare('SELECT name FROM _migrations ORDER BY id').all() as { name: string }[];
+    const applied = await sql.unsafe('SELECT name FROM _migrations ORDER BY id') as { name: string }[];
     const appliedSet = new Set(applied.map((m) => m.name));
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
 
     for (const file of files) {
       if (appliedSet.has(file)) continue;
       try {
-        const sql = readFileSync(migPath.join(migrationsDir, file), 'utf-8');
-        connection.exec(sql);
-        connection.prepare('INSERT INTO _migrations (name) VALUES (?)').run(file);
+        const sqlContent = readFileSync(migPath.join(migrationsDir, file), 'utf-8');
+        await sql.unsafe(sqlContent);
+        await sql.unsafe('INSERT INTO _migrations (name) VALUES ($1)', [file]);
         console.log(`  ✅ Migration applied: ${file}`);
       } catch (err: any) {
         console.error(`  ⚠️ Migration ${file}: ${err.message}`);
@@ -52,7 +51,7 @@ async function autoSetup() {
   }
 
   // Create auth tables if they don't exist
-  connection.exec(`
+  await sql.unsafe(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -80,20 +79,20 @@ async function autoSetup() {
     );
   `);
 
-  // Add columns that may be missing
-  try { connection.exec(`ALTER TABLE seasons ADD COLUMN formation TEXT`); } catch {}
-  try { connection.exec(`ALTER TABLE training_sessions ADD COLUMN date TEXT`); } catch {}
-  try { connection.exec(`ALTER TABLE training_attendance ADD COLUMN session_id TEXT`); } catch {}
-  try { connection.exec(`ALTER TABLE players ADD COLUMN tertiary_position TEXT`); } catch {}
+  // Add columns that may be missing (PostgreSQL uses ADD COLUMN IF NOT EXISTS)
+  try { await sql.unsafe(`ALTER TABLE seasons ADD COLUMN IF NOT EXISTS formation TEXT`); } catch {}
+  try { await sql.unsafe(`ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS date TEXT`); } catch {}
+  try { await sql.unsafe(`ALTER TABLE training_attendance ADD COLUMN IF NOT EXISTS session_id TEXT REFERENCES training_sessions(id)`); } catch {}
+  try { await sql.unsafe(`ALTER TABLE players ADD COLUMN IF NOT EXISTS tertiary_position TEXT`); } catch {}
 
   // Seed admin user if not exists
-  const existingAdmin = db.select().from(users).where(eq(users.email, 'admin@touchline.app')).get();
+  const [existingAdmin] = await db.select().from(users).where(eq(users.email, 'admin@touchline.app')).limit(1);
   if (!existingAdmin) {
     const now = new Date().toISOString();
     const adminId = nanoid();
     const passwordHash = createHash('sha256').update('touchline123').digest('hex');
 
-    db.insert(users).values({
+    await db.insert(users).values({
       id: adminId,
       email: 'admin@touchline.app',
       passwordHash,
@@ -102,39 +101,39 @@ async function autoSetup() {
       role: 'admin',
       createdAt: now,
       updatedAt: now,
-    } as any).run();
+    } as any);
 
     // Link to club_default if it exists
-    const club = db.select().from(clubs).where(eq(clubs.id, 'club_default')).get();
+    const [club] = await db.select().from(clubs).where(eq(clubs.id, 'club_default')).limit(1);
     if (club) {
-      db.insert(userTeams).values({
+      await db.insert(userTeams).values({
         id: nanoid(),
         userId: adminId,
         clubId: 'club_default',
         role: 'admin',
         createdAt: now,
-      } as any).run();
+      } as any);
     }
 
     console.log('✅ Admin user seeded: admin@touchline.app');
   }
 
   // Seed default club and season if not exists
-  const existingClub = db.select().from(clubs).where(eq(clubs.id, 'club_default')).get();
+  const [existingClub] = await db.select().from(clubs).where(eq(clubs.id, 'club_default')).limit(1);
   if (!existingClub) {
     const now = new Date().toISOString();
     const currentYear = new Date().getFullYear();
     
-    db.insert(clubs).values({
+    await db.insert(clubs).values({
       id: 'club_default',
       name: 'My Club',
       teamName: 'First Team',
       ageGroup: 'U10',
       createdAt: now,
       updatedAt: now,
-    } as any).run();
+    } as any);
 
-    db.insert(seasons).values({
+    await db.insert(seasons).values({
       id: 'season_default',
       clubId: 'club_default',
       name: `${currentYear}/${currentYear + 1} Season`,
@@ -148,7 +147,7 @@ async function autoSetup() {
       isActive: true,
       createdAt: now,
       updatedAt: now,
-    } as any).run();
+    } as any);
 
     console.log('✅ Default club and season seeded');
   }

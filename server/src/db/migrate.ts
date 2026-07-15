@@ -1,4 +1,4 @@
-import { connection } from './index.js';
+import { sql } from './index.js';
 import { readFileSync, readdirSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -12,22 +12,20 @@ const migrationsDir = path.join(__dirname, 'migrations');
  * Run all pending database migrations in order.
  * Uses a simple migrations tracking table.
  */
-function migrate(): void {
+async function migrate(): Promise<void> {
   console.log('🔄 Running database migrations...\n');
 
   // Create migrations tracking table
-  connection.exec(`
+  await sql.unsafe(`
     CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      applied_at TEXT NOT NULL DEFAULT NOW()::TEXT
     );
   `);
 
   // Get already applied migrations
-  const applied = connection
-    .prepare('SELECT name FROM _migrations ORDER BY id')
-    .all() as { name: string }[];
+  const applied = await sql.unsafe('SELECT name FROM _migrations ORDER BY id') as { name: string }[];
   const appliedSet = new Set(applied.map((m) => m.name));
 
   // Get migration files
@@ -47,11 +45,11 @@ function migrate(): void {
       continue;
     }
 
-    const sql = readFileSync(path.join(migrationsDir, file), 'utf-8');
+    const sqlContent = readFileSync(path.join(migrationsDir, file), 'utf-8');
     
     try {
-      connection.exec(sql);
-      connection.prepare('INSERT INTO _migrations (name) VALUES (?)').run(file);
+      await sql.unsafe(sqlContent);
+      await sql.unsafe('INSERT INTO _migrations (name) VALUES ($1)', [file]);
       console.log(`  ✅ Applied: ${file}`);
       count++;
     } catch (error) {
@@ -68,5 +66,4 @@ function migrate(): void {
   }
 }
 
-migrate();
-process.exit(0);
+migrate().then(() => process.exit(0));

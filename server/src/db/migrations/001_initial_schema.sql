@@ -1,4 +1,4 @@
--- Touchline MVP 0.1 - Initial Schema
+-- Touchline MVP 0.1 - Initial Schema (PostgreSQL)
 -- Created: 2026-07-04
 
 -- ============================================================
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS seasons (
   match_duration_minutes INTEGER NOT NULL,
   periods INTEGER NOT NULL,
   max_squad_size INTEGER NOT NULL,
-  is_active INTEGER NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -48,13 +48,14 @@ CREATE TABLE IF NOT EXISTS players (
   preferred_foot TEXT,
   primary_position TEXT NOT NULL,
   secondary_position TEXT,
-  is_gk_volunteer INTEGER NOT NULL DEFAULT 0,
+  tertiary_position TEXT,
+  is_gk_volunteer BOOLEAN NOT NULL DEFAULT FALSE,
   photo_url TEXT,
   parent_name TEXT,
   parent_email TEXT,
   parent_phone TEXT,
   medical_notes TEXT,
-  is_active INTEGER NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -101,10 +102,10 @@ CREATE TABLE IF NOT EXISTS team_selections (
   id TEXT PRIMARY KEY,
   fixture_id TEXT NOT NULL REFERENCES fixtures(id),
   player_id TEXT NOT NULL REFERENCES players(id),
-  is_selected INTEGER NOT NULL DEFAULT 0,
+  is_selected BOOLEAN NOT NULL DEFAULT FALSE,
   position TEXT,
-  is_captain INTEGER NOT NULL DEFAULT 0,
-  is_gk INTEGER NOT NULL DEFAULT 0,
+  is_captain BOOLEAN NOT NULL DEFAULT FALSE,
+  is_gk BOOLEAN NOT NULL DEFAULT FALSE,
   gk_periods TEXT,
   notes TEXT,
   created_at TEXT NOT NULL,
@@ -223,7 +224,7 @@ CREATE TABLE IF NOT EXISTS development_goal_library (
   position_group TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  is_custom INTEGER NOT NULL DEFAULT 0,
+  is_custom BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TEXT NOT NULL
 );
 
@@ -234,6 +235,7 @@ CREATE TABLE IF NOT EXISTS development_goal_library (
 CREATE TABLE IF NOT EXISTS training_sessions (
   id TEXT PRIMARY KEY,
   fixture_id TEXT REFERENCES fixtures(id),
+  date TEXT,
   theme TEXT,
   objectives TEXT,
   plan TEXT,
@@ -245,9 +247,10 @@ CREATE TABLE IF NOT EXISTS training_sessions (
 
 CREATE TABLE IF NOT EXISTS training_attendance (
   id TEXT PRIMARY KEY,
-  fixture_id TEXT NOT NULL REFERENCES fixtures(id),
+  fixture_id TEXT REFERENCES fixtures(id),
+  session_id TEXT REFERENCES training_sessions(id),
   player_id TEXT NOT NULL REFERENCES players(id),
-  attended INTEGER NOT NULL DEFAULT 0,
+  attended BOOLEAN NOT NULL DEFAULT FALSE,
   reason TEXT,
   UNIQUE(fixture_id, player_id)
 );
@@ -260,8 +263,21 @@ CREATE TABLE IF NOT EXISTS substitution_plans (
   id TEXT PRIMARY KEY,
   fixture_id TEXT NOT NULL REFERENCES fixtures(id),
   plan TEXT NOT NULL,
-  is_approved INTEGER NOT NULL DEFAULT 0,
+  is_approved BOOLEAN NOT NULL DEFAULT FALSE,
   generated_by TEXT NOT NULL DEFAULT 'engine',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- ============================================================
+-- OPPOSITION NOTES
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS opposition_notes (
+  id TEXT PRIMARY KEY,
+  opponent TEXT NOT NULL,
+  fixture_id TEXT REFERENCES fixtures(id),
+  notes TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

@@ -27,18 +27,18 @@ router.post('/', asyncHandler(async (req, res) => {
   const currentYear = new Date().getFullYear();
 
   // Create the club
-  db.insert(clubs).values({
+  await db.insert(clubs).values({
     id: clubId,
     name: name.trim(),
     teamName: teamName ? String(teamName).trim() : null,
     ageGroup: ageGroup || null,
     createdAt: now,
     updatedAt: now,
-  } as any).run();
+  } as any);
 
   // Create a default season for the new club
   const seasonId = nanoid();
-  db.insert(seasons).values({
+  await db.insert(seasons).values({
     id: seasonId,
     clubId,
     name: `${currentYear}/${currentYear + 1} Season`,
@@ -52,9 +52,9 @@ router.post('/', asyncHandler(async (req, res) => {
     isActive: true,
     createdAt: now,
     updatedAt: now,
-  } as any).run();
+  } as any);
 
-  const created = db.select().from(clubs).where(eq(clubs.id, clubId)).get();
+  const [created] = await db.select().from(clubs).where(eq(clubs.id, clubId)).limit(1);
   res.status(201).json({ data: created });
 }));
 
@@ -63,7 +63,7 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   const { name, teamName, ageGroup } = req.body;
 
   // Validate club exists
-  const existing = db.select().from(clubs).where(eq(clubs.id, id)).get();
+  const [existing] = await db.select().from(clubs).where(eq(clubs.id, id)).limit(1);
   if (!existing) {
     res.status(404).json({ error: 'Club not found' });
     return;
@@ -93,9 +93,9 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     updates.ageGroup = ageGroup;
   }
 
-  db.update(clubs).set(updates).where(eq(clubs.id, id)).run();
+  await db.update(clubs).set(updates).where(eq(clubs.id, id));
 
-  const updated = db.select().from(clubs).where(eq(clubs.id, id)).get();
+  const [updated] = await db.select().from(clubs).where(eq(clubs.id, id)).limit(1);
   res.json({ data: updated });
 }));
 

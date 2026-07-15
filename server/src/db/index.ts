@@ -1,28 +1,24 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Use DATABASE_URL from environment (Railway provides this automatically)
+const connectionString = process.env.DATABASE_URL;
 
-// Database file location
-// On Railway (or when RAILWAY_VOLUME_MOUNT_PATH is set), use the persistent volume
-// Locally, use the server root
-const DB_PATH = process.env.DATABASE_URL 
-  || (process.env.RAILWAY_VOLUME_MOUNT_PATH ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'touchline.db') : path.join(__dirname, '../../touchline.db'));
+if (!connectionString) {
+  console.error('❌ DATABASE_URL environment variable is required');
+  console.error('   Set it to a PostgreSQL connection string, e.g.:');
+  console.error('   DATABASE_URL=postgresql://user:pass@host:5432/dbname');
+  process.exit(1);
+}
 
-// Create SQLite connection
-const sqlite = new Database(DB_PATH);
-
-// Enable WAL mode for better performance
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+// Create PostgreSQL connection
+// For queries (used by drizzle-orm)
+const queryClient = postgres(connectionString);
 
 // Create Drizzle ORM instance
-export const db = drizzle(sqlite);
+export const db = drizzle(queryClient);
 
-// Export raw connection for migrations
-export const connection = sqlite;
+// Export raw sql client for migrations and raw queries
+export const sql = queryClient;
 
-console.log(`📦 Database connected: ${DB_PATH}`);
+console.log('📦 PostgreSQL connected');
