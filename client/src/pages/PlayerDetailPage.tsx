@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, UserX, UserCheck, Shirt } from 'lucide-react';
+import { ArrowLeft, Edit, UserX, UserCheck, Shirt, ClipboardCheck, Trophy, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { usePlayer, useDeactivatePlayer, useReactivatePlayer } from '@/hooks/use-players';
+import { usePlayer, useDeactivatePlayer, useReactivatePlayer, usePlayerStats } from '@/hooks/use-players';
+import { usePlayerDevelopment, useCreateGoal, useUpdateGoalStatus } from '@/hooks/use-development';
 import { PlayerForm } from '@/components/players/PlayerForm';
 
 const POSITION_LABELS: Record<string, string> = {
@@ -33,6 +34,8 @@ export function PlayerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: player, isLoading, error } = usePlayer(id);
+  const { data: devGoals } = usePlayerDevelopment(id);
+  const { data: stats } = usePlayerStats(id);
   const deactivate = useDeactivatePlayer();
   const reactivate = useReactivatePlayer();
   const [isEditing, setIsEditing] = useState(false);
@@ -205,31 +208,155 @@ export function PlayerDetailPage() {
           </Card>
         )}
 
-        {/* Stats placeholder */}
+        {/* Season Statistics */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Season Statistics</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Statistics will appear here once matches have been recorded.
-            </p>
+          <CardContent className="space-y-4">
+            {stats ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">
+                      Training: {stats.trainingSessionsAttended}/{stats.totalTrainingSessions} sessions attended
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Trophy className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">
+                      Matches: {stats.matchesPlayed} played
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">
+                      Outfield: {stats.totalOutfieldMinutes} min | GK: {stats.totalGkMinutes} min
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Statistics will appear here once matches have been recorded.
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        {/* Development Goals placeholder */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Development Goals</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Development goals will appear here once they have been assigned.
-            </p>
-          </CardContent>
-        </Card>
+        {/* Development Goals */}
+        <DevelopmentGoalsCard playerId={player.id} devGoals={devGoals} />
       </div>
     </div>
+  );
+}
+
+function DevelopmentGoalsCard({ playerId, devGoals }: { playerId: string; devGoals: { goals: { id: string; title: string; category: string; status: string; description?: string | null }[]; observations: unknown[] } | undefined }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newCategory, setNewCategory] = useState('technical');
+  const createGoal = useCreateGoal();
+  const updateStatus = useUpdateGoalStatus();
+
+  const handleAddGoal = async () => {
+    if (!newTitle.trim()) return;
+    await createGoal.mutateAsync({
+      playerId,
+      data: { category: newCategory, positionGroup: 'all', title: newTitle.trim() },
+    });
+    setNewTitle('');
+    setShowAddForm(false);
+  };
+
+  const handleStatusChange = (goalId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'working_on_it' ? 'improving' : currentStatus === 'improving' ? 'achieved' : 'working_on_it';
+    updateStatus.mutate({ goalId, status: nextStatus });
+  };
+
+  const STATUS_LABELS: Record<string, string> = {
+    working_on_it: 'Working on it',
+    improving: 'Improving',
+    achieved: 'Achieved',
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">Development Goals</CardTitle>
+        <Button variant="outline" size="sm" onClick={() => setShowAddForm(!showAddForm)}>
+          {showAddForm ? 'Cancel' : '+ Add Goal'}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {/* Add goal form */}
+        {showAddForm && (
+          <div className="mb-4 space-y-2 rounded-md border p-3 bg-muted/30">
+            <input
+              type="text"
+              placeholder="Goal title (e.g. Improve first touch)"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <div className="flex gap-2">
+              <select
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="technical">Technical</option>
+                <option value="tactical">Tactical</option>
+                <option value="physical">Physical</option>
+                <option value="psychological">Psychological</option>
+              </select>
+              <Button size="sm" onClick={handleAddGoal} disabled={createGoal.isPending || !newTitle.trim()}>
+                {createGoal.isPending ? 'Adding...' : 'Add'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Goals list */}
+        {devGoals && devGoals.goals && devGoals.goals.length > 0 ? (
+          <div className="space-y-3">
+            {devGoals.goals.map((goal) => (
+              <div key={goal.id} className="flex items-start gap-3 border-b last:border-0 pb-2 last:pb-0">
+                <button
+                  onClick={() => handleStatusChange(goal.id, goal.status)}
+                  className="mt-0.5 shrink-0"
+                  title={`Click to change status (currently: ${STATUS_LABELS[goal.status]})`}
+                >
+                  <Badge
+                    variant={goal.status === 'achieved' ? 'success' : goal.status === 'improving' ? 'warning' : 'secondary'}
+                    className="text-[10px] cursor-pointer hover:opacity-80"
+                  >
+                    {goal.status === 'achieved' ? '✓' : goal.status === 'improving' ? '↑' : '•'}
+                  </Badge>
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${goal.status === 'achieved' ? 'line-through text-muted-foreground' : ''}`}>{goal.title}</p>
+                  {goal.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{goal.description}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <span className="capitalize">{goal.category}</span> · {STATUS_LABELS[goal.status]}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No development goals yet. Click "Add Goal" to create one.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

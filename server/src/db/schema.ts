@@ -239,6 +239,7 @@ export const developmentGoalLibrary = sqliteTable('development_goal_library', {
 export const trainingSessions = sqliteTable('training_sessions', {
   id: text('id').primaryKey(),
   fixtureId: text('fixture_id').references(() => fixtures.id),
+  date: text('date'), // ISO date string for standalone sessions
   theme: text('theme'),
   objectives: text('objectives'), // JSON array
   plan: text('plan'), // JSON structured plan (array of blocks)
@@ -250,7 +251,8 @@ export const trainingSessions = sqliteTable('training_sessions', {
 
 export const trainingAttendance = sqliteTable('training_attendance', {
   id: text('id').primaryKey(),
-  fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
+  fixtureId: text('fixture_id').references(() => fixtures.id),
+  sessionId: text('session_id').references(() => trainingSessions.id),
   playerId: text('player_id').notNull().references(() => players.id),
   attended: integer('attended', { mode: 'boolean' }).notNull().default(false),
   reason: text('reason'),
@@ -266,6 +268,19 @@ export const substitutionPlans = sqliteTable('substitution_plans', {
   plan: text('plan').notNull(), // JSON: array of periods with on/off pitch players and positions
   isApproved: integer('is_approved', { mode: 'boolean' }).notNull().default(false),
   generatedBy: text('generated_by').notNull().default('engine'), // "engine" | "ai" | "coach"
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// ============================================================
+// OPPOSITION NOTES
+// ============================================================
+
+export const oppositionNotes = sqliteTable('opposition_notes', {
+  id: text('id').primaryKey(),
+  opponent: text('opponent').notNull(),
+  fixtureId: text('fixture_id').references(() => fixtures.id),
+  notes: text('notes').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

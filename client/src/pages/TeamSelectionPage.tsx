@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Wand2, AlertTriangle, Check, Clock, Users, ArrowRightLeft, Edit3, RotateCcw, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +52,9 @@ function sortByPosition(a: PeriodPlayer, b: PeriodPlayer): number {
  * Select a fixture, generate a balanced substitution plan, manually adjust, review and approve.
  */
 export function TeamSelectionPage() {
-  const [selectedFixtureId, setSelectedFixtureId] = useState<string | undefined>();
+  const [searchParams] = useSearchParams();
+  const fixtureFromUrl = searchParams.get('fixture') ?? undefined;
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string | undefined>(fixtureFromUrl);
   const [result, setResult] = useState<TeamSelectionResult | null>(null);
   const [editablePlan, setEditablePlan] = useState<SubstitutionPlan | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -207,6 +210,19 @@ export function TeamSelectionPage() {
               />
             ))}
           </div>
+
+          {/* Current fixture banner */}
+          {selectedFixtureId && (() => {
+            const selected = matchFixtures.find(f => f.id === selectedFixtureId);
+            if (!selected) return null;
+            return (
+              <div className="rounded-md bg-primary/5 border border-primary/20 p-3">
+                <p className="text-sm font-medium text-primary">
+                  Preparing for: {selected.homeAway === 'home' ? 'vs' : '@'} {selected.opponent} — {new Date(selected.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Generate button */}
           <Button

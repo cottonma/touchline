@@ -10,6 +10,7 @@ import { useFixtures } from '@/hooks/use-fixtures';
 import { usePlayers } from '@/hooks/use-players';
 import { useRecordMatch } from '@/hooks/use-match-day';
 import { useApprovedPlan, useRegenerateTeamSelection } from '@/hooks/use-team-selection';
+import { useOppositionNotes, useCreateOppositionNote } from '@/hooks/use-opposition-notes';
 import type { SubstitutionPlan, PeriodPlan, EngineConfig, PlayerForSelection } from '@/services/team-selection.service';
 
 const POSITION_SHORT: Record<string, string> = {
@@ -53,6 +54,7 @@ export function MatchDayPage() {
   const [playingTimeEntries, setPlayingTimeEntries] = useState<PlayingTimeEntry[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [oppositionNotesText, setOppositionNotesText] = useState('');
 
   // Match day adjustments state
   const [excludedPlayerIds, setExcludedPlayerIds] = useState<string[]>([]);
@@ -64,6 +66,7 @@ export function MatchDayPage() {
   const { data: players } = usePlayers();
   const recordMatch = useRecordMatch();
   const regeneratePlan = useRegenerateTeamSelection();
+  const createOppositionNote = useCreateOppositionNote();
 
   const { data: completedFixtures } = useFixtures({ status: 'completed' });
 
@@ -71,6 +74,11 @@ export function MatchDayPage() {
     ...(fixtures?.filter((f) => f.type !== 'training') ?? []),
     ...(completedFixtures?.filter((f) => f.type !== 'training') ?? []),
   ];
+
+  // Get the selected fixture's opponent name for opposition notes lookup
+  const selectedFixture = allMatchFixtures.find((f) => f.id === selectedFixtureId);
+  const opponentName = selectedFixture?.opponent ?? undefined;
+  const { data: previousOppositionNotes } = useOppositionNotes(opponentName);
 
   if (!selectedFixtureId && allMatchFixtures.length > 0) {
     setSelectedFixtureId(allMatchFixtures[0].id);
@@ -199,6 +207,16 @@ export function MatchDayPage() {
           })),
         },
       });
+
+      // Save opposition notes if provided
+      if (oppositionNotesText.trim() && opponentName) {
+        await createOppositionNote.mutateAsync({
+          opponent: opponentName,
+          fixtureId: selectedFixtureId,
+          notes: oppositionNotesText.trim(),
+        });
+      }
+
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to record match.');
@@ -218,7 +236,7 @@ export function MatchDayPage() {
           <p className="text-muted-foreground mt-2">
             {goalsFor}-{goalsAgainst} {goalsFor > goalsAgainst ? '(Win)' : goalsFor < goalsAgainst ? '(Loss)' : '(Draw)'}
           </p>
-          <Button className="mt-6" onClick={() => { setSubmitted(false); setGoalsFor(0); setGoalsAgainst(0); setGoalEntries([]); setCoachNotes(''); setMotmPlayerId(''); }}>
+          <Button className="mt-6" onClick={() => { setSubmitted(false); setGoalsFor(0); setGoalsAgainst(0); setGoalEntries([]); setCoachNotes(''); setMotmPlayerId(''); setOppositionNotesText(''); }}>
             Record Another Match
           </Button>
         </div>
@@ -316,18 +334,53 @@ export function MatchDayPage() {
             </CardContent>
           </Card>
 
+          {/* Opposition Notes */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Opposition Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Previous encounters */}
+              {previousOppositionNotes && previousOppositionNotes.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Previous encounters</Label>
+                  <div className="space-y-2 rounded-md border p-3 bg-muted/30 max-h-48 overflow-y-auto">
+                    {previousOppositionNotes.map((note) => (
+                      <div key={note.id} className="text-sm">
+                        <span className="font-medium text-xs text-muted-foreground">
+                          {new Date(note.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}:
+                        </span>{' '}
+                        <span>{note.notes}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Current notes input */}
+              <div className="space-y-2">
+                <Label>Notes on the Opposition</Label>
+                <textarea
+                  value={oppositionNotesText}
+                  onChange={(e) => setOppositionNotesText(e.target.value)}
+                  placeholder="Formation, key players, strengths, weaknesses..."
+                  rows={3}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Goals */}
-          {goalsFor > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Goalscorers & Assists</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {goalEntries.map((goal, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Select value={goal.scorerId} onChange={(e) => { const updated = [...goalEntries]; updated[idx].scorerId = e.target.value; setGoalEntries(updated); }}>
-                      <option value="">Scorer...</option>
-                      {players?.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Goalscorers & Assists</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {goalEntries.map((goal, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Select value={goal.scorerId} onChange={(e) => { const updated = [...goalEntries]; updated[idx].scorerId = e.target.value; setGoalEntries(updated); }}>
+                    <option value="">Scorer...</option>
+                    {players?.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
                     </Select>
                     <Select value={goal.assistId ?? ''} onChange={(e) => { const updated = [...goalEntries]; updated[idx].assistId = e.target.value || undefined; setGoalEntries(updated); }}>
                       <option value="">Assist...</option>
@@ -345,17 +398,19 @@ export function MatchDayPage() {
                     </Button>
                   </div>
                 ))}
-                <Button variant="outline" size="sm" onClick={() => setGoalEntries([...goalEntries, { scorerId: '' }])}>
-                  <Plus className="h-4 w-4" /> Add Goal
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+              <Button variant="outline" size="sm" onClick={() => setGoalEntries([...goalEntries, { scorerId: '' }])}>
+                <Plus className="h-4 w-4" /> Add Goal
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* Playing Time */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Playing Time</CardTitle>
+              <CardTitle className="text-base">Playing Time (Actual)</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Record the actual minutes each player played. Pre-filled from the plan — adjust if different on the day.
+              </p>
             </CardHeader>
             <CardContent>
               {playingTimeEntries.length === 0 ? (
@@ -364,18 +419,20 @@ export function MatchDayPage() {
                     {displayPlan ? 'Load from Plan' : 'Load Players'}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {displayPlan ? 'Pre-fills from approved plan.' : 'Pre-fills with default minutes.'}
+                    {displayPlan ? 'Pre-fills minutes from the approved plan.' : 'Pre-fills with default minutes. Adjust as needed.'}
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr,70px,70px] gap-2 text-xs text-muted-foreground font-medium">
+                <div className="space-y-1">
+                  {/* Header row */}
+                  <div className="grid grid-cols-[1fr,80px,80px] gap-2 pb-2 border-b text-xs text-muted-foreground font-medium">
                     <span>Player</span>
-                    <span className="text-center">Outfield</span>
-                    <span className="text-center">GK</span>
+                    <span className="text-center">Outfield mins</span>
+                    <span className="text-center">GK mins</span>
                   </div>
+                  {/* Player rows */}
                   {playingTimeEntries.map((pt, idx) => (
-                    <div key={pt.playerId} className="grid grid-cols-[1fr,70px,70px] gap-2 items-center">
+                    <div key={pt.playerId} className="grid grid-cols-[1fr,80px,80px] gap-2 items-center py-1">
                       <span className="text-sm font-medium truncate">{pt.playerName}</span>
                       <Input
                         type="number" min={0} max={48}

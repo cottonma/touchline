@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Check, X, HelpCircle, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,9 @@ type AvailabilityStatus = 'available' | 'unavailable' | 'unknown';
  * Designed for fast, one-tap updates.
  */
 export function AvailabilityPage() {
-  const [selectedFixtureId, setSelectedFixtureId] = useState<string | undefined>();
+  const [searchParams] = useSearchParams();
+  const fixtureFromUrl = searchParams.get('fixture') ?? undefined;
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string | undefined>(fixtureFromUrl);
 
   // Get upcoming fixtures for selection
   const { data: fixtures, isLoading: fixturesLoading } = useFixtures({ status: 'upcoming' });
@@ -46,6 +49,19 @@ export function AvailabilityPage() {
             selectedId={selectedFixtureId}
             onSelect={setSelectedFixtureId}
           />
+
+          {/* Current fixture banner */}
+          {selectedFixtureId && (() => {
+            const selected = fixtures.find(f => f.id === selectedFixtureId);
+            if (!selected) return null;
+            return (
+              <div className="rounded-md bg-primary/5 border border-primary/20 p-3">
+                <p className="text-sm font-medium text-primary">
+                  Setting availability for: {selected.type === 'training' ? 'Training' : `${selected.homeAway === 'home' ? 'vs' : '@'} ${selected.opponent}`} — {new Date(selected.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Availability grid */}
           {selectedFixtureId && (

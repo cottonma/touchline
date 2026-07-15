@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { playerApi, type CreatePlayerInput, type UpdatePlayerInput } from '@/services/player.service';
+import { playerApi, type CreatePlayerInput, type UpdatePlayerInput, type PlayerStats } from '@/services/player.service';
 
 /**
  * React Query hooks for player management.
@@ -22,6 +22,16 @@ export function usePlayer(id: string | undefined) {
   return useQuery({
     queryKey: [...PLAYERS_KEY, id],
     queryFn: () => playerApi.getById(id!),
+    select: (response) => response.data,
+    enabled: !!id,
+  });
+}
+
+/** Fetch player season statistics */
+export function usePlayerStats(id: string | undefined) {
+  return useQuery({
+    queryKey: [...PLAYERS_KEY, id, 'stats'],
+    queryFn: () => playerApi.getStats(id!),
     select: (response) => response.data,
     enabled: !!id,
   });

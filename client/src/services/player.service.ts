@@ -46,6 +46,14 @@ export interface UpdatePlayerInput extends Partial<CreatePlayerInput> {
   isActive?: boolean;
 }
 
+export interface PlayerStats {
+  trainingSessionsAttended: number;
+  totalTrainingSessions: number;
+  matchesPlayed: number;
+  totalOutfieldMinutes: number;
+  totalGkMinutes: number;
+}
+
 interface PlayersResponse {
   data: Player[];
   count: number;
@@ -55,12 +63,19 @@ interface PlayerResponse {
   data: Player;
 }
 
+interface PlayerStatsResponse {
+  data: PlayerStats;
+}
+
 export const playerApi = {
   getAll: (includeInactive = false) =>
     api.get<PlayersResponse>(`/players${includeInactive ? '?includeInactive=true' : ''}`),
 
   getById: (id: string) =>
     api.get<PlayerResponse>(`/players/${id}`),
+
+  getStats: (id: string) =>
+    api.get<PlayerStatsResponse>(`/players/${id}/stats`),
 
   create: (data: CreatePlayerInput) =>
     api.post<PlayerResponse>('/players', data),

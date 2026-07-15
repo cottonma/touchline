@@ -25,8 +25,8 @@ export class TrainingController {
   }
 
   async create(req: Request, res: Response): Promise<void> {
-    const { fixtureId, theme, objectives, plan, notes, linkedFixtureId } = req.body;
-    const result = await trainingService.createSession({ fixtureId, theme, objectives, plan, notes, linkedFixtureId });
+    const { fixtureId, date, theme, objectives, plan, notes, linkedFixtureId } = req.body;
+    const result = await trainingService.createSession({ fixtureId, date, theme, objectives, plan, notes, linkedFixtureId });
     if (!result.success) {
       res.status(400).json({ error: result.error.code, message: result.error.message });
       return;
@@ -36,8 +36,8 @@ export class TrainingController {
 
   async update(req: Request, res: Response): Promise<void> {
     const id = req.params.id!;
-    const { theme, objectives, plan, notes, linkedFixtureId } = req.body;
-    const result = await trainingService.updateSession(id, { theme, objectives, plan, notes, linkedFixtureId });
+    const { theme, objectives, plan, notes, linkedFixtureId, date } = req.body;
+    const result = await trainingService.updateSession(id, { theme, objectives, plan, notes, linkedFixtureId, date });
     if (!result.success) {
       res.status(404).json({ error: result.error.code, message: result.error.message });
       return;
@@ -51,7 +51,7 @@ export class TrainingController {
     res.json({ data: { message: 'Training session deleted.' } });
   }
 
-  // Attendance
+  // Attendance (fixture-based - legacy)
   async getAttendance(req: Request, res: Response): Promise<void> {
     const fixtureId = req.params.fixtureId!;
     const attendance = await trainingService.getAttendance(fixtureId);
@@ -71,6 +71,28 @@ export class TrainingController {
       return;
     }
     res.json({ data: result.data, count: result.data.length });
+  }
+
+  // Attendance (session-based)
+  async getSessionAttendance(req: Request, res: Response): Promise<void> {
+    const id = req.params.id!;
+    const attendance = await trainingService.getSessionAttendance(id);
+    res.json({ data: attendance });
+  }
+
+  async toggleSessionAttendance(req: Request, res: Response): Promise<void> {
+    const id = req.params.id!;
+    const { playerId, attended } = req.body;
+    if (!playerId || typeof attended !== 'boolean') {
+      res.status(400).json({ error: 'VALIDATION_ERROR', message: 'playerId and attended (boolean) are required.' });
+      return;
+    }
+    const result = await trainingService.toggleSessionAttendance(id, playerId, attended);
+    if (!result.success) {
+      res.status(400).json({ error: result.error.code, message: result.error.message });
+      return;
+    }
+    res.json({ data: result.data });
   }
 }
 

@@ -379,7 +379,11 @@ export function generateSubstitutionPlan(
 
     // Pure outfield players - full period — assign formation positions
     const fullPeriodPlayerIds = periodFullAssignments[periodIdx];
-    const allOutfieldThisPeriod = [...gkPlayersOnOutfield, ...fullPeriodPlayerIds];
+    // Include players who START the period (both full-period and partial-leaving)
+    const partialLeavingPlayerIds = [...playerPartialPlay[periodIdx].entries()]
+      .filter(([_, timing]) => timing.start === 0)
+      .map(([pid]) => pid);
+    const allOutfieldThisPeriod = [...gkPlayersOnOutfield, ...fullPeriodPlayerIds, ...partialLeavingPlayerIds];
     const assignedPositions = formationSlots
       ? assignFormationPositions(allOutfieldThisPeriod, availablePlayers, formationSlots)
       : null;
@@ -406,28 +410,29 @@ export function generateSubstitutionPlan(
     }
 
     // Pure outfield players - partial period
-    // For incoming players (start > 0), they should inherit the position of the player
-    // they are replacing. Build a map from substitution events for this period.
-    const subPositionMap = new Map<string, string>(); // playerOnId -> position they should play
+    // For incoming players (start > 0), they should inherit the FORMATION position of the player
+    // they are replacing. For outgoing players (start === 0), use their formation-assigned position.
+    const subPositionMap = new Map<string, string>(); // playerOnId -> formation position they should play
     for (const sub of substitutionEvents) {
       if (sub.period === periodNum) {
-        // Find what position the outgoing player was playing
-        const outgoingPartial = playerPartialPlay[periodIdx].get(sub.playerOffId);
-        if (outgoingPartial) {
-          const outgoingPlayer = availablePlayers.find((p) => p.id === sub.playerOffId);
-          if (outgoingPlayer) {
-            subPositionMap.set(sub.playerOnId, outgoingPlayer.primaryPosition);
-          }
+        // The outgoing player's formation-assigned position
+        const outgoingFormationPos = assignedPositions?.get(sub.playerOffId);
+        if (outgoingFormationPos) {
+          subPositionMap.set(sub.playerOnId, outgoingFormationPos);
         }
       }
     }
 
     for (const [pid, timing] of playerPartialPlay[periodIdx]) {
       const player = availablePlayers.find((p) => p.id === pid)!;
-      // If this player is coming on (start > 0), use the position of the player they're replacing
-      const position = timing.start > 0
-        ? (subPositionMap.get(pid) ?? player.primaryPosition)
-        : player.primaryPosition;
+      let position: string;
+      if (timing.start === 0) {
+        // Outgoing player — use their formation-assigned position
+        position = assignedPositions?.get(pid) ?? player.primaryPosition;
+      } else {
+        // Incoming player — inherit the formation position of the player they replace
+        position = subPositionMap.get(pid) ?? player.primaryPosition;
+      }
       onPitch.push({
         playerId: pid,
         position,
@@ -618,8 +623,8 @@ const SLOT_CATEGORY: Record<string, string> = {};
 
 /**
  * Assign formation positions to players based on their primary, secondary, and tertiary positions.
- * Priority: primary > secondary > tertiary > any remaining slot.
- * Falls back to any available slot if no position match.
+ * Uses a SLOT-FIRST approach: each formation slot finds the best available player for it.
+ * This guarantees every slot in the formation is filled exactly once (LB, RB, LM, CM, RM, CF).
  */
 function assignFormationPositions(
   playerIds: string[],
@@ -627,63 +632,103 @@ function assignFormationPositions(
   formationSlots: string[],
 ): Map<string, string> {
   const assignments = new Map<string, string>();
-  const availableSlots = [...formationSlots];
+  const unassignedPlayers = new Set(playerIds);
+  const unfilledSlots = [...formationSlots];
 
-  // First pass: assign players to exact primary position slot match
-  for (const pid of playerIds) {
-    const player = allPlayers.find(p => p.id === pid);
-    if (!player) continue;
-    const slotIdx = availableSlots.findIndex(slot => slot === player.primaryPosition);
-    if (slotIdx !== -1) {
-      assignments.set(pid, availableSlots[slotIdx]);
-      availableSlots.splice(slotIdx, 1);
+  // Score how well a player fits a slot (higher = better fit)
+  function fitScore(playerId: string, slot: string): number {
+    const player = allPlayers.find(p => p.id === playerId);
+    if (!player) return 0;
+    if (player.primaryPosition === slot) return 100;
+    if (player.secondaryPosition === slot) return 80;
+    if (player.tertiaryPosition === slot) return 60;
+    // Category match (e.g. CM player fits LM slot since both are midfield)
+    const playerCat = POSITION_CATEGORY[player.primaryPosition] ?? 'midfield';
+    const slotCat = SLOT_CATEGORY[slot] ?? 'midfield';
+    if (playerCat === slotCat) return 40;
+    // Secondary/tertiary category match
+    if (player.secondaryPosition) {
+      const secCat = POSITION_CATEGORY[player.secondaryPosition] ?? 'midfield';
+      if (secCat === slotCat) return 30;
     }
+    if (player.tertiaryPosition) {
+      const terCat = POSITION_CATEGORY[player.tertiaryPosition] ?? 'midfield';
+      if (terCat === slotCat) return 20;
+    }
+    return 10; // No match at all
   }
 
-  // Second pass: assign unassigned players to exact secondary position slot match
-  for (const pid of playerIds) {
-    if (assignments.has(pid)) continue;
-    const player = allPlayers.find(p => p.id === pid);
-    if (!player || !player.secondaryPosition) continue;
-    const slotIdx = availableSlots.findIndex(slot => slot === player.secondaryPosition);
-    if (slotIdx !== -1) {
-      assignments.set(pid, availableSlots[slotIdx]);
-      availableSlots.splice(slotIdx, 1);
-    }
-  }
-
-  // Third pass: assign unassigned players to exact tertiary position slot match
-  for (const pid of playerIds) {
-    if (assignments.has(pid)) continue;
-    const player = allPlayers.find(p => p.id === pid);
-    if (!player || !player.tertiaryPosition) continue;
-    const slotIdx = availableSlots.findIndex(slot => slot === player.tertiaryPosition);
-    if (slotIdx !== -1) {
-      assignments.set(pid, availableSlots[slotIdx]);
-      availableSlots.splice(slotIdx, 1);
-    }
-  }
-
-  // Fourth pass: assign unassigned players to matching category slots (primary position category)
-  for (const pid of playerIds) {
-    if (assignments.has(pid)) continue;
-    const player = allPlayers.find(p => p.id === pid);
-    const primaryPos = player?.primaryPosition ?? 'CM';
-    const category = POSITION_CATEGORY[primaryPos] ?? 'midfield';
-    const slotIdx = availableSlots.findIndex(slot => {
-      const slotCat = SLOT_CATEGORY[slot] ?? 'midfield';
-      return slotCat === category;
+  // Greedy assignment: for each slot, pick the best-fitting unassigned player
+  // Do multiple passes — first assign slots where there's a clear best fit (primary match),
+  // then fill remaining with best available
+  
+  // Pass 1: assign slots that have a player with an exact primary match
+  for (let i = unfilledSlots.length - 1; i >= 0; i--) {
+    const slot = unfilledSlots[i];
+    const primaryMatch = [...unassignedPlayers].find(pid => {
+      const player = allPlayers.find(p => p.id === pid);
+      return player?.primaryPosition === slot;
     });
-    if (slotIdx !== -1) {
-      assignments.set(pid, availableSlots[slotIdx]);
-      availableSlots.splice(slotIdx, 1);
+    if (primaryMatch) {
+      assignments.set(primaryMatch, slot);
+      unassignedPlayers.delete(primaryMatch);
+      unfilledSlots.splice(i, 1);
     }
   }
 
-  // Final pass: assign remaining players to any available slot
-  for (const pid of playerIds) {
-    if (!assignments.has(pid) && availableSlots.length > 0) {
-      assignments.set(pid, availableSlots.shift()!);
+  // Pass 2: assign slots that have a player with a secondary match
+  for (let i = unfilledSlots.length - 1; i >= 0; i--) {
+    const slot = unfilledSlots[i];
+    const secMatch = [...unassignedPlayers].find(pid => {
+      const player = allPlayers.find(p => p.id === pid);
+      return player?.secondaryPosition === slot;
+    });
+    if (secMatch) {
+      assignments.set(secMatch, slot);
+      unassignedPlayers.delete(secMatch);
+      unfilledSlots.splice(i, 1);
+    }
+  }
+
+  // Pass 3: assign slots that have a player with a tertiary match
+  for (let i = unfilledSlots.length - 1; i >= 0; i--) {
+    const slot = unfilledSlots[i];
+    const terMatch = [...unassignedPlayers].find(pid => {
+      const player = allPlayers.find(p => p.id === pid);
+      return player?.tertiaryPosition === slot;
+    });
+    if (terMatch) {
+      assignments.set(terMatch, slot);
+      unassignedPlayers.delete(terMatch);
+      unfilledSlots.splice(i, 1);
+    }
+  }
+
+  // Pass 4: assign remaining slots to best available player by category/score
+  for (let i = unfilledSlots.length - 1; i >= 0; i--) {
+    const slot = unfilledSlots[i];
+    if (unassignedPlayers.size === 0) break;
+    
+    let bestPlayer: string | null = null;
+    let bestScore = -1;
+    for (const pid of unassignedPlayers) {
+      const score = fitScore(pid, slot);
+      if (score > bestScore) {
+        bestScore = score;
+        bestPlayer = pid;
+      }
+    }
+    if (bestPlayer) {
+      assignments.set(bestPlayer, slot);
+      unassignedPlayers.delete(bestPlayer);
+      unfilledSlots.splice(i, 1);
+    }
+  }
+
+  // Any remaining unassigned players get whatever slot is left
+  for (const pid of unassignedPlayers) {
+    if (unfilledSlots.length > 0) {
+      assignments.set(pid, unfilledSlots.shift()!);
     }
   }
 

@@ -11,12 +11,15 @@ import { trainingRoutes } from './training.routes.js';
 import { reportsRoutes } from './reports.routes.js';
 import { aiCoachRoutes } from './ai-coach.routes.js';
 import { seasonRoutes } from './season.routes.js';
+import { dashboardRoutes } from './dashboard.routes.js';
+import { oppositionNotesRoutes } from './opposition-notes.routes.js';
 
 /**
  * Register all API routes.
  * Routes will be added here as features are built.
  */
 export function setupRoutes(app: Express): void {
+  app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/players', playerRoutes);
   app.use('/api/fixtures', fixtureRoutes);
   app.use('/api/fixtures/:fixtureId/availability', availabilityRoutes);
@@ -29,6 +32,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/ai', aiCoachRoutes);
   app.use('/api/policies', policyRoutes);
   app.use('/api/seasons', seasonRoutes);
+  app.use('/api/opposition-notes', oppositionNotesRoutes);
 
   // 404 handler for unmatched API routes
   app.use('/api/*', (_req, res) => {

@@ -62,9 +62,9 @@ export function FixturesPage() {
             {fixtures?.length ?? 0} fixture{fixtures?.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={() => { setShowForm(!showForm); if (!showForm) setTimeout(() => document.getElementById('fixture-form')?.scrollIntoView({ behavior: 'smooth' }), 100); }}>
           <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add Fixture</span>
+          <span className="hidden sm:inline">{showForm ? 'Cancel' : 'Add Fixture'}</span>
         </Button>
       </div>
 
@@ -87,10 +87,12 @@ export function FixturesPage() {
 
       {/* Add Fixture Form */}
       {showForm && (
-        <FixtureForm
-          onClose={() => setShowForm(false)}
-          onSuccess={() => setShowForm(false)}
-        />
+        <div id="fixture-form">
+          <FixtureForm
+            onClose={() => setShowForm(false)}
+            onSuccess={() => setShowForm(false)}
+          />
+        </div>
       )}
 
       {/* Fixture List */}

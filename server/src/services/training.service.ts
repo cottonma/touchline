@@ -48,7 +48,7 @@ export class TrainingService {
     return { success: true, data: { message: 'Training session deleted.' } };
   }
 
-  // === Attendance ===
+  // === Attendance (fixture-based - legacy) ===
 
   async getAttendance(fixtureId: string): Promise<TrainingAttendanceRow[]> {
     return trainingRepository.findAttendanceByFixture(fixtureId);
@@ -57,6 +57,17 @@ export class TrainingService {
   async recordAttendance(fixtureId: string, items: { playerId: string; attended: boolean; reason?: string }[]): Promise<ServiceResult<TrainingAttendanceRow[]>> {
     const results = await trainingRepository.batchUpsertAttendance(fixtureId, items);
     return { success: true, data: results };
+  }
+
+  // === Attendance (session-based) ===
+
+  async getSessionAttendance(sessionId: string): Promise<TrainingAttendanceRow[]> {
+    return trainingRepository.findAttendanceBySession(sessionId);
+  }
+
+  async toggleSessionAttendance(sessionId: string, playerId: string, attended: boolean): Promise<ServiceResult<TrainingAttendanceRow>> {
+    const record = await trainingRepository.upsertAttendanceBySession(sessionId, playerId, attended);
+    return { success: true, data: record };
   }
 
   // === Helpers ===

@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 export interface TrainingSessionRow {
   id: string;
   fixtureId: string | null;
+  date: string | null;
   theme: string | null;
   objectives: string | null; // JSON array
   plan: string | null; // JSON structured plan (array of blocks)
@@ -21,7 +22,8 @@ export interface TrainingSessionRow {
 
 export interface TrainingAttendanceRow {
   id: string;
-  fixtureId: string;
+  fixtureId: string | null;
+  sessionId: string | null;
   playerId: string;
   attended: boolean;
   reason: string | null;
@@ -29,6 +31,7 @@ export interface TrainingAttendanceRow {
 
 export interface CreateTrainingSessionData {
   fixtureId?: string;
+  date?: string;
   theme?: string;
   objectives?: string[];
   plan?: TrainingBlock[];
@@ -67,6 +70,7 @@ export class TrainingRepository {
     const session: TrainingSessionRow = {
       id: nanoid(),
       fixtureId: data.fixtureId ?? null,
+      date: data.date ?? null,
       theme: data.theme ?? null,
       objectives: data.objectives ? JSON.stringify(data.objectives) : null,
       plan: data.plan ? JSON.stringify(data.plan) : null,
@@ -86,6 +90,7 @@ export class TrainingRepository {
     const now = new Date().toISOString();
     const updated: TrainingSessionRow = {
       ...existing,
+      date: data.date !== undefined ? (data.date ?? null) : existing.date,
       theme: data.theme !== undefined ? (data.theme ?? null) : existing.theme,
       objectives: data.objectives !== undefined ? (data.objectives ? JSON.stringify(data.objectives) : null) : existing.objectives,
       plan: data.plan !== undefined ? (data.plan ? JSON.stringify(data.plan) : null) : existing.plan,
@@ -98,17 +103,27 @@ export class TrainingRepository {
   }
 
   async delete(id: string): Promise<boolean> {
+    // Also delete attendance records for this session
+    await db.delete(trainingAttendance).where(eq(trainingAttendance.sessionId, id));
     await db.delete(trainingSessions).where(eq(trainingSessions.id, id));
     return true;
   }
 
-  // === Attendance ===
+  // === Attendance (fixture-based - legacy) ===
 
   async findAttendanceByFixture(fixtureId: string): Promise<TrainingAttendanceRow[]> {
     return db.select().from(trainingAttendance).where(eq(trainingAttendance.fixtureId, fixtureId));
   }
 
-  async upsertAttendance(fixtureId: string, playerId: string, attended: boolean, reason?: string): Promise<TrainingAttendanceRow> {
+  async batchUpsertAttendance(fixtureId: string, items: { playerId: string; attended: boolean; reason?: string }[]): Promise<TrainingAttendanceRow[]> {
+    const results: TrainingAttendanceRow[] = [];
+    for (const item of items) {
+      results.push(await this.upsertAttendanceByFixture(fixtureId, item.playerId, item.attended, item.reason));
+    }
+    return results;
+  }
+
+  private async upsertAttendanceByFixture(fixtureId: string, playerId: string, attended: boolean, reason?: string): Promise<TrainingAttendanceRow> {
     const existing = await db.select().from(trainingAttendance)
       .where(eq(trainingAttendance.fixtureId, fixtureId));
     const record = existing.find((r) => r.playerId === playerId);
@@ -122,6 +137,7 @@ export class TrainingRepository {
     const newRecord: TrainingAttendanceRow = {
       id: nanoid(),
       fixtureId,
+      sessionId: null,
       playerId,
       attended,
       reason: reason ?? null,
@@ -130,12 +146,33 @@ export class TrainingRepository {
     return newRecord;
   }
 
-  async batchUpsertAttendance(fixtureId: string, items: { playerId: string; attended: boolean; reason?: string }[]): Promise<TrainingAttendanceRow[]> {
-    const results: TrainingAttendanceRow[] = [];
-    for (const item of items) {
-      results.push(await this.upsertAttendance(fixtureId, item.playerId, item.attended, item.reason));
+  // === Attendance (session-based) ===
+
+  async findAttendanceBySession(sessionId: string): Promise<TrainingAttendanceRow[]> {
+    return db.select().from(trainingAttendance).where(eq(trainingAttendance.sessionId, sessionId));
+  }
+
+  async upsertAttendanceBySession(sessionId: string, playerId: string, attended: boolean, reason?: string): Promise<TrainingAttendanceRow> {
+    const existing = await db.select().from(trainingAttendance)
+      .where(eq(trainingAttendance.sessionId, sessionId));
+    const record = existing.find((r) => r.playerId === playerId);
+
+    if (record) {
+      const updated = { ...record, attended, reason: reason ?? record.reason };
+      await db.update(trainingAttendance).set(updated).where(eq(trainingAttendance.id, record.id));
+      return updated;
     }
-    return results;
+
+    const newRecord: TrainingAttendanceRow = {
+      id: nanoid(),
+      fixtureId: null,
+      sessionId,
+      playerId,
+      attended,
+      reason: reason ?? null,
+    };
+    await db.insert(trainingAttendance).values(newRecord);
+    return newRecord;
   }
 }
 

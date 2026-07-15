@@ -209,29 +209,29 @@ export function FixtureDetailPage() {
         {fixture.status === 'scheduled' && isMatch && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Match Week Actions</CardTitle>
+              <CardTitle className="text-base">Match Preparation</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => navigate('/availability')}
+                onClick={() => navigate(`/availability?fixture=${fixture.id}`)}
               >
-                Record Availability
+                Set Availability
               </Button>
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => navigate('/team-selection')}
+                onClick={() => navigate(`/team-selection?fixture=${fixture.id}`)}
               >
                 Select Team
               </Button>
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => navigate('/match-day')}
+                onClick={() => navigate(`/match-day?fixture=${fixture.id}`)}
               >
-                Record Match
+                Match Day
               </Button>
             </CardContent>
           </Card>
