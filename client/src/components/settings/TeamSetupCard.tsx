@@ -39,6 +39,7 @@ const OUTFIELD_COUNT: Record<string, number> = {
 
 interface Season {
   id: string;
+  clubId: string;
   format: string;
   matchDurationMinutes: number;
   periods: number;
@@ -48,6 +49,8 @@ interface Season {
 
 export function TeamSetupCard() {
   const [season, setSeason] = useState<Season | null>(null);
+  const [clubId, setClubId] = useState('');
+  const [clubName, setClubName] = useState('');
   const [format, setFormat] = useState('7v7');
   const [matchDuration, setMatchDuration] = useState(48);
   const [periods, setPeriods] = useState(4);
@@ -59,19 +62,37 @@ export function TeamSetupCard() {
 
   // Fetch active season on mount
   useEffect(() => {
-    api.get<{ data: Season[] }>('/seasons').then(res => {
-      const active = res.data.find((s: Season & { isActive: boolean }) => (s as Season & { isActive: boolean }).isActive);
+    api.get<{ data: (Season & { isActive: boolean })[] }>('/seasons').then(res => {
+      const active = res.data.find(s => s.isActive);
       if (active) {
         setSeason(active);
+        setClubId(active.clubId || '');
         setFormat(active.format);
         setMatchDuration(active.matchDurationMinutes);
         setPeriods(active.periods);
         setMaxSquadSize(active.maxSquadSize);
         setFormation(active.formation || '');
         setCustomFormation(active.formation || '');
+        // Fetch club name
+        if (active.clubId) {
+          api.get<any[]>('/auth/clubs').then(clubs => {
+            const club = clubs.find((c: any) => c.id === active.clubId);
+            if (club) setClubName(club.name || '');
+          }).catch(() => {});
+        }
       }
     });
   }, []);
+
+  // Save club name
+  const saveClubName = useCallback(async () => {
+    if (!clubId || !clubName.trim()) return;
+    try {
+      await api.patch(`/clubs/${clubId}`, { name: clubName.trim() });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
+  }, [clubId, clubName]);
 
   // Auto-save function
   const autoSave = useCallback(async (updates: Partial<Season>) => {
@@ -178,6 +199,18 @@ export function TeamSetupCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Club/Team Name */}
+        <div className="space-y-2">
+          <Label>Team Name</Label>
+          <Input
+            value={clubName}
+            onChange={(e) => setClubName(e.target.value)}
+            onBlur={() => { if (clubName.trim() && clubId) saveClubName(); }}
+            placeholder="e.g. Leeds City Juniors Knights"
+          />
+          <p className="text-xs text-muted-foreground">The name shown throughout the app</p>
+        </div>
+
         {/* Format Selector */}
         <div className="space-y-2">
           <Label>Match Format</Label>
