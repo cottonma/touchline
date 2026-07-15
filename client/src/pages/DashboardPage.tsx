@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useDashboard } from '@/hooks/use-dashboard';
+import { useEffect } from 'react';
 
 /**
  * Dashboard - the landing page for Touchline.
@@ -12,6 +13,13 @@ import { useDashboard } from '@/hooks/use-dashboard';
 export function DashboardPage() {
   const { data, isLoading } = useDashboard();
   const navigate = useNavigate();
+
+  // Redirect to setup wizard if no players and setup not completed
+  useEffect(() => {
+    if (!isLoading && data && data.squad.activeCount === 0 && !localStorage.getItem('touchline_setup_complete')) {
+      navigate('/setup', { replace: true });
+    }
+  }, [data, isLoading, navigate]);
 
   if (isLoading) {
     return <div className="text-muted-foreground py-12 text-center">Loading dashboard...</div>;

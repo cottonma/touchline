@@ -19,6 +19,7 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { AiCoachPage } from '@/pages/AiCoachPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ManageUsersPage } from '@/pages/ManageUsersPage';
+import { SetupWizardPage } from '@/pages/SetupWizardPage';
 
 /**
  * Route guard — redirects to /login if not authenticated.
@@ -55,6 +56,7 @@ function App() {
 
             {/* Protected routes */}
             <Route element={<ProtectedRoute />}>
+              <Route path="/setup" element={<SetupWizardPage />} />
               <Route path="/" element={<AppLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="players" element={<PlayersPage />} />
