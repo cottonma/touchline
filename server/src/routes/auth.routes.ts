@@ -253,3 +253,34 @@ authRoutes.delete('/users/:id', authMiddleware, requireAdmin, async (req, res) =
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete user' });
   }
 });
+
+/**
+ * PATCH /api/auth/users/:id
+ * Update a user's details (admin only).
+ */
+authRoutes.patch('/users/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const { firstName, lastName, email, role } = req.body;
+
+    const [existing] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!existing) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'User not found' });
+      return;
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    if (firstName !== undefined) updates.firstName = firstName;
+    if (lastName !== undefined) updates.lastName = lastName;
+    if (email !== undefined) updates.email = email;
+    if (role !== undefined) updates.role = role;
+
+    await db.update(users).set(updates).where(eq(users.id, id));
+
+    const [updated] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    res.json({ data: updated });
+  } catch (err) {
+    console.error('[auth/users/patch]', err);
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to update user' });
+  }
+});

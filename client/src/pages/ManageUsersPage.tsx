@@ -399,18 +399,36 @@ export function ManageUsersPage() {
                       </td>
                       <td className="py-3 px-2">
                         {user.role !== 'admin' && (
-                          <button
-                            onClick={async () => {
-                              if (!confirm(`Delete ${user.firstName} ${user.lastName}?`)) return;
-                              try {
-                                await api.delete(`/auth/users/${user.id}`);
-                                fetchUsers();
-                              } catch {}
-                            }}
-                            className="text-xs text-red-400 hover:text-red-300"
-                          >
-                            Delete
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                const newFirst = prompt('First name:', user.firstName);
+                                if (!newFirst) return;
+                                const newLast = prompt('Last name:', user.lastName);
+                                if (!newLast) return;
+                                try {
+                                  await api.patch(`/auth/users/${user.id}`, { firstName: newFirst, lastName: newLast });
+                                  fetchUsers();
+                                  setSuccessMessage(`Updated ${newFirst} ${newLast}`);
+                                } catch {}
+                              }}
+                              className="text-xs text-blue-400 hover:text-blue-300"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Delete ${user.firstName} ${user.lastName}?`)) return;
+                                try {
+                                  await api.delete(`/auth/users/${user.id}`);
+                                  fetchUsers();
+                                } catch {}
+                              }}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
