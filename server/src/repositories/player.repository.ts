@@ -174,11 +174,15 @@ export class PlayerRepository {
   /**
    * Check if a shirt number is already in use by an active player.
    */
-  async isShirtNumberTaken(shirtNumber: number, excludePlayerId?: string): Promise<boolean> {
+  async isShirtNumberTaken(shirtNumber: number, excludePlayerId?: string, clubId?: string): Promise<boolean> {
     const conditions = [
       eq(players.shirtNumber, shirtNumber),
       eq(players.isActive, true),
     ];
+
+    if (clubId) {
+      conditions.push(eq(players.clubId, clubId));
+    }
 
     const results = await db
       .select({ id: players.id })

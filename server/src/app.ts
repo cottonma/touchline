@@ -131,6 +131,9 @@ async function autoSetup() {
     );
   `);
 
+  // Assign orphan players (no clubId) to club_default
+  await sql.unsafe(`UPDATE players SET club_id = 'club_default' WHERE club_id IS NULL`);
+
   // Seed admin user if not exists
   const [existingAdmin] = await db.select().from(users).where(eq(users.email, 'admin@touchline.app')).limit(1);
   if (!existingAdmin) {

@@ -43,9 +43,9 @@ export class PlayerService {
    * Create a new player with business rule validation.
    */
   async createPlayer(data: CreatePlayerData): Promise<ServiceResult<PlayerRow>> {
-    // Validate shirt number uniqueness
+    // Validate shirt number uniqueness (scoped to same club)
     if (data.shirtNumber) {
-      const taken = await playerRepository.isShirtNumberTaken(data.shirtNumber);
+      const taken = await playerRepository.isShirtNumberTaken(data.shirtNumber, undefined, data.clubId);
       if (taken) {
         return {
           success: false,
