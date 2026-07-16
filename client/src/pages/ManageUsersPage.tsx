@@ -377,6 +377,7 @@ export function ManageUsersPage() {
                     <th className="text-left py-3 px-2 text-slate-400 font-medium">Email</th>
                     <th className="text-left py-3 px-2 text-slate-400 font-medium">Role</th>
                     <th className="text-left py-3 px-2 text-slate-400 font-medium">Club/Team</th>
+                    <th className="text-left py-3 px-2 text-slate-400 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -395,6 +396,22 @@ export function ManageUsersPage() {
                         {user.teams.length > 0
                           ? user.teams.map((t) => t.clubName).join(', ')
                           : '—'}
+                      </td>
+                      <td className="py-3 px-2">
+                        {user.role !== 'admin' && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Delete ${user.firstName} ${user.lastName}?`)) return;
+                              try {
+                                await api.delete(`/auth/users/${user.id}`);
+                                fetchUsers();
+                              } catch {}
+                            }}
+                            className="text-xs text-red-400 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

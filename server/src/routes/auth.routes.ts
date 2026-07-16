@@ -227,3 +227,29 @@ authRoutes.get('/clubs', authMiddleware, requireAdmin, async (_req, res) => {
     res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to fetch clubs' });
   }
 });
+
+/**
+ * DELETE /api/auth/users/:id
+ * Delete a user (admin only).
+ */
+authRoutes.delete('/users/:id', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id as string;
+
+    // Don't allow deleting yourself
+    if (id === req.user!.userId) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'Cannot delete your own account' });
+      return;
+    }
+
+    // Delete user_teams links first
+    await db.delete(userTeams).where(eq(userTeams.userId, id));
+    // Delete the user
+    await db.delete(users).where(eq(users.id, id));
+
+    res.json({ data: { message: 'User deleted' } });
+  } catch (err) {
+    console.error('[auth/users/delete]', err);
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to delete user' });
+  }
+});
