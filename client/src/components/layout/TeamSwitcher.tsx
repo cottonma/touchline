@@ -41,7 +41,7 @@ export function TeamSwitcher() {
       >
         {clubs.map((club) => (
           <option key={club.id} value={club.id}>
-            {club.teamName || club.name}
+            {club.name}
           </option>
         ))}
       </select>
