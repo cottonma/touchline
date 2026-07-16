@@ -318,10 +318,13 @@ export function TeamSelectionPage() {
                   if (isOnPitch || isOnBench) {
                     setEditSwapState({ periodIdx, playerId });
                   }
+                } else if (editSwapState.playerId === playerId && editSwapState.periodIdx === periodIdx) {
+                  // Clicked same player again — deselect
+                  setEditSwapState(null);
                 } else {
                   // Second click - complete the swap
                   if (editSwapState.periodIdx !== periodIdx) {
-                    // Different period, reset
+                    // Different period, start fresh selection
                     setEditSwapState({ periodIdx, playerId });
                     return;
                   }
@@ -335,7 +338,7 @@ export function TeamSelectionPage() {
                   } else if (firstIsOnBench && secondIsOnPitch) {
                     handleSwapPlayers(periodIdx, playerId, editSwapState.playerId);
                   } else {
-                    // Same area - reset selection
+                    // Both on same area (both on pitch or both on bench) — just reselect
                     setEditSwapState({ periodIdx, playerId });
                   }
                 }
@@ -444,7 +447,12 @@ function TeamSelectionResults({
 
       {isEditMode && (
         <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
-          <span className="font-medium">Edit mode:</span> Click a player on pitch, then click a bench player to swap them for that quarter.
+          <span className="font-medium">Edit mode:</span> Tap a player on pitch (they highlight), then tap a bench player to swap them. Change sub minutes by editing the numbers. Tap "Done Editing" when finished.
+          {editSwapState && (
+            <span className="block mt-1 font-medium text-blue-600">
+              Player selected — now tap a bench player to complete the swap, or tap them again to deselect.
+            </span>
+          )}
         </div>
       )}
 
