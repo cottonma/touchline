@@ -30,6 +30,14 @@ interface Club {
   teamName: string | null;
 }
 
+interface Player {
+  id: string;
+  firstName: string;
+  lastName: string;
+  shirtNumber: number | null;
+  primaryPosition: string;
+}
+
 /**
  * Manage Users page — admin only.
  * Lists all users and provides a form to create new coach/admin accounts.
@@ -38,6 +46,7 @@ export function ManageUsersPage() {
   const { isAdmin } = useAuth();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
+  const [squadPlayers, setSquadPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -51,6 +60,7 @@ export function ManageUsersPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('coach');
   const [clubId, setClubId] = useState('');
+  const [playerId, setPlayerId] = useState('');
   const [createNewTeam, setCreateNewTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamAgeGroup, setNewTeamAgeGroup] = useState('');
@@ -73,10 +83,19 @@ export function ManageUsersPage() {
     }
   }, []);
 
+  const fetchPlayers = useCallback(async () => {
+    try {
+      const data = await api.get<Player[]>('/players');
+      setSquadPlayers(data);
+    } catch (err) {
+      console.error('Failed to fetch players', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAdmin) return;
-    Promise.all([fetchUsers(), fetchClubs()]).finally(() => setIsLoading(false));
-  }, [isAdmin, fetchUsers, fetchClubs]);
+    Promise.all([fetchUsers(), fetchClubs(), fetchPlayers()]).finally(() => setIsLoading(false));
+  }, [isAdmin, fetchUsers, fetchClubs, fetchPlayers]);
 
   const resetForm = () => {
     setEmail('');
@@ -85,6 +104,7 @@ export function ManageUsersPage() {
     setPassword('');
     setRole('coach');
     setClubId('');
+    setPlayerId('');
     setCreateNewTeam(false);
     setNewTeamName('');
     setNewTeamAgeGroup('');
@@ -121,6 +141,7 @@ export function ManageUsersPage() {
         lastName,
         role,
         clubId: assignClubId,
+        playerId: role === 'parent' ? playerId || undefined : undefined,
       });
 
       setSuccessMessage(
@@ -245,9 +266,27 @@ export function ManageUsersPage() {
                 >
                   <option value="coach">Coach</option>
                   <option value="scout">Scout</option>
+                  <option value="parent">Parent</option>
                   <option value="admin">Admin</option>
                 </Select>
               </div>
+              {role === 'parent' && (
+                <div className="space-y-2">
+                  <Label htmlFor="playerId">Link to Player (Child)</Label>
+                  <Select
+                    id="playerId"
+                    value={playerId}
+                    onChange={(e) => setPlayerId(e.target.value)}
+                  >
+                    <option value="">— Select player —</option>
+                    {squadPlayers.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.firstName} {p.lastName} {p.shirtNumber ? `(#${p.shirtNumber})` : ''} — {p.primaryPosition}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="clubId">Assign to Club</Label>
                 <div className="flex items-center gap-2 mb-2">

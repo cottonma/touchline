@@ -21,6 +21,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { ManageUsersPage } from '@/pages/ManageUsersPage';
 import { ScoutReportPage } from '@/pages/ScoutReportPage';
 import { SetupWizardPage } from '@/pages/SetupWizardPage';
+import { ParentPage } from '@/pages/ParentPage';
 
 /**
  * Route guard — redirects to /login if not authenticated.
@@ -75,6 +76,7 @@ function App() {
                 <Route path="ai-coach" element={<AiCoachPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="manage-users" element={<ManageUsersPage />} />
+                <Route path="parent" element={<ParentPage />} />
               </Route>
             </Route>
           </Routes>

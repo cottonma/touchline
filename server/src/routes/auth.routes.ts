@@ -118,7 +118,7 @@ authRoutes.get('/me', authMiddleware, async (req, res) => {
  */
 authRoutes.post('/register', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const { email, password, firstName, lastName, role, clubId } = req.body;
+    const { email, password, firstName, lastName, role, clubId, playerId } = req.body;
 
     if (!email || !password || !firstName || !lastName) {
       res.status(400).json({ error: 'BAD_REQUEST', message: 'All fields are required' });
@@ -143,6 +143,7 @@ authRoutes.post('/register', authMiddleware, requireAdmin, async (req, res) => {
       firstName,
       lastName,
       role: role || 'coach',
+      playerId: playerId || null,
       createdAt: now,
       updatedAt: now,
     };

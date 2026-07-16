@@ -21,6 +21,9 @@ export function DashboardPage() {
     if (user?.role === 'scout') {
       navigate('/scout-report', { replace: true });
     }
+    if (user?.role === 'parent') {
+      navigate('/parent', { replace: true });
+    }
   }, [user, navigate]);
 
   // Redirect to setup wizard if no players and setup not completed

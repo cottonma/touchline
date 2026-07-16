@@ -117,6 +117,18 @@ async function autoSetup() {
   try { await sql.unsafe(`ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS date TEXT`); } catch {}
   try { await sql.unsafe(`ALTER TABLE training_attendance ADD COLUMN IF NOT EXISTS session_id TEXT REFERENCES training_sessions(id)`); } catch {}
   try { await sql.unsafe(`ALTER TABLE players ADD COLUMN IF NOT EXISTS tertiary_position TEXT`); } catch {}
+  try { await sql.unsafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS player_id TEXT REFERENCES players(id)`); } catch {}
+
+  // Create motm_votes table for parent MOTM voting
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS motm_votes (
+      id TEXT PRIMARY KEY,
+      fixture_id TEXT NOT NULL REFERENCES fixtures(id),
+      voter_id TEXT NOT NULL REFERENCES users(id),
+      player_id TEXT NOT NULL REFERENCES players(id),
+      created_at TEXT NOT NULL
+    );
+  `);
 
   // Seed admin user if not exists
   const [existingAdmin] = await db.select().from(users).where(eq(users.email, 'admin@touchline.app')).limit(1);

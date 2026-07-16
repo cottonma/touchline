@@ -18,7 +18,8 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
-  role: text('role').notNull().default('coach'), // 'admin' | 'coach'
+  role: text('role').notNull().default('coach'), // 'admin' | 'coach' | 'scout' | 'parent'
+  playerId: text('player_id').references(() => players.id), // For parent accounts - linked to their child
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -28,6 +29,18 @@ export const userTeams = pgTable('user_teams', {
   userId: text('user_id').notNull().references(() => users.id),
   clubId: text('club_id').notNull().references(() => clubs.id),
   role: text('role').notNull().default('coach'), // role within this team
+  createdAt: text('created_at').notNull(),
+});
+
+// ============================================================
+// MOTM VOTES (Parent Man of the Match voting)
+// ============================================================
+
+export const motmVotes = pgTable('motm_votes', {
+  id: text('id').primaryKey(),
+  fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
+  voterId: text('voter_id').notNull().references(() => users.id), // who voted
+  playerId: text('player_id').notNull().references(() => players.id), // who they voted for
   createdAt: text('created_at').notNull(),
 });
 

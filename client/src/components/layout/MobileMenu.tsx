@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { navGroups } from './navigation';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Mobile hamburger menu.
@@ -11,6 +12,15 @@ import { navGroups } from './navigation';
  */
 export function MobileMenu() {
   const [isOpen, setIsOpen] = useState(false);
+  const { user } = useAuth();
+  const isScout = user?.role === 'scout';
+  const isParent = user?.role === 'parent';
+
+  const filteredGroups = isScout
+    ? [{ label: 'Scout', items: navGroups.flatMap(g => g.items).filter(i => ['/scout-report'].includes(i.path)) }]
+    : isParent
+    ? [{ label: 'Parent', items: navGroups.flatMap(g => g.items).filter(i => ['/parent'].includes(i.path)) }]
+    : navGroups;
 
   return (
     <>
@@ -43,7 +53,7 @@ export function MobileMenu() {
 
           {/* Navigation links */}
           <nav className="overflow-y-auto p-4">
-            {navGroups.map((group) => (
+            {filteredGroups.map((group) => (
               <div key={group.label} className="mb-5">
                 <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}

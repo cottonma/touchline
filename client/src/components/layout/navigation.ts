@@ -13,6 +13,7 @@ import {
   Settings,
   Shield,
   Eye,
+  Heart,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -51,6 +52,7 @@ export const navItems: NavItem[] = [
   { label: 'AI Coach', path: '/ai-coach', icon: Bot, primary: false },
   { label: 'Settings', path: '/settings', icon: Settings, primary: false },
   { label: 'Manage Users', path: '/manage-users', icon: Shield, primary: false },
+  { label: 'Parent Portal', path: '/parent', icon: Heart, primary: false },
 ];
 
 /** Items shown in mobile bottom navigation bar */

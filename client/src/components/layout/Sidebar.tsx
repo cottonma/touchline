@@ -12,11 +12,17 @@ import { TeamSwitcher } from './TeamSwitcher';
 export function Sidebar() {
   const { user, isAdmin, logout } = useAuth();
   const isScout = user?.role === 'scout';
+  const isParent = user?.role === 'parent';
 
   // Scouts only see the scout report
   const scoutPaths = ['/scout-report'];
+  // Parents only see the parent portal
+  const parentPaths = ['/parent'];
+
   const filteredGroups = isScout
     ? [{ label: 'Scout', items: navGroups.flatMap(g => g.items).filter(i => scoutPaths.includes(i.path)) }]
+    : isParent
+    ? [{ label: 'Parent', items: navGroups.flatMap(g => g.items).filter(i => parentPaths.includes(i.path)) }]
     : navGroups;
 
   return (
@@ -28,6 +34,10 @@ export function Sidebar() {
         ) : isScout ? (
           <div className="px-3 py-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
             Scout View
+          </div>
+        ) : isParent ? (
+          <div className="px-3 py-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
+            Parent Portal
           </div>
         ) : (
           <div className="px-3 py-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
