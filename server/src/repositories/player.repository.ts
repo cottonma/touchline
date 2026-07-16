@@ -10,6 +10,7 @@ import { nanoid } from 'nanoid';
 
 export interface PlayerRow {
   id: string;
+  clubId: string | null;
   firstName: string;
   lastName: string;
   shirtNumber: number | null;
@@ -44,6 +45,7 @@ export interface CreatePlayerData {
   parentEmail?: string;
   parentPhone?: string;
   medicalNotes?: string;
+  clubId?: string;
 }
 
 export interface UpdatePlayerData {
@@ -67,15 +69,27 @@ export interface UpdatePlayerData {
 export class PlayerRepository {
   /**
    * Get all active players, ordered by last name then first name.
+   * If clubId is provided, only return players belonging to that club.
    */
-  async findAll(includeInactive = false): Promise<PlayerRow[]> {
-    if (includeInactive) {
+  async findAll(includeInactive = false, clubId?: string): Promise<PlayerRow[]> {
+    const conditions = [];
+
+    if (!includeInactive) {
+      conditions.push(eq(players.isActive, true));
+    }
+
+    if (clubId) {
+      conditions.push(eq(players.clubId, clubId));
+    }
+
+    if (conditions.length === 0) {
       return db.select().from(players).orderBy(players.lastName, players.firstName);
     }
+
     return db
       .select()
       .from(players)
-      .where(eq(players.isActive, true))
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
       .orderBy(players.lastName, players.firstName);
   }
 
@@ -96,6 +110,7 @@ export class PlayerRepository {
 
     const newPlayer = {
       id,
+      clubId: data.clubId ?? null,
       firstName: data.firstName,
       lastName: data.lastName,
       shirtNumber: data.shirtNumber ?? null,

@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { Request as ExpressRequest } from 'express';
 import { fixtureService } from '../services/fixture.service.js';
 import { createFixtureSchema, updateFixtureSchema } from '../validation/fixture.validation.js';
+import { getActiveSeasonId } from '../middleware/team-context.js';
 
 type Request = ExpressRequest<{ id?: string }>;
 
@@ -13,11 +14,17 @@ export class FixtureController {
   /**
    * GET /api/fixtures
    * List fixtures. Query params: ?seasonId=, ?type=, ?status=upcoming|completed
+   * If no seasonId query param, defaults to the active season for X-Club-Id header.
    */
   async getAll(req: Request, res: Response): Promise<void> {
-    const seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
+    let seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
     const type = req.query.type ? String(req.query.type) : undefined;
     const status = req.query.status ? String(req.query.status) : undefined;
+
+    // If no explicit seasonId, resolve from X-Club-Id header
+    if (!seasonId) {
+      seasonId = await getActiveSeasonId(req);
+    }
 
     let data;
     if (status === 'upcoming') {
@@ -36,9 +43,15 @@ export class FixtureController {
   /**
    * GET /api/fixtures/next
    * Get the next upcoming fixture.
+   * If no seasonId query param, defaults to the active season for X-Club-Id header.
    */
   async getNext(req: Request, res: Response): Promise<void> {
-    const seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
+    let seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
+
+    if (!seasonId) {
+      seasonId = await getActiveSeasonId(req);
+    }
+
     const fixture = await fixtureService.getNextFixture(seasonId);
 
     if (!fixture) {

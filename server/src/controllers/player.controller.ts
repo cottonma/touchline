@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { Request as ExpressRequest } from 'express';
 import { playerService } from '../services/player.service.js';
 import { createPlayerSchema, updatePlayerSchema } from '../validation/player.validation.js';
+import { getClubId } from '../middleware/team-context.js';
 
 // Use a simpler request type that doesn't cause issues with params
 type Request = ExpressRequest<{ id?: string }>;
@@ -15,10 +16,12 @@ export class PlayerController {
   /**
    * GET /api/players
    * List all players. Query param ?includeInactive=true to include inactive.
+   * Filters by X-Club-Id header when present.
    */
   async getAll(req: Request, res: Response): Promise<void> {
     const includeInactive = req.query.includeInactive === 'true';
-    const players = await playerService.getAllPlayers(includeInactive);
+    const clubId = getClubId(req);
+    const players = await playerService.getAllPlayers(includeInactive, clubId);
     res.json({ data: players, count: players.length });
   }
 
@@ -40,7 +43,7 @@ export class PlayerController {
 
   /**
    * POST /api/players
-   * Create a new player.
+   * Create a new player. Attaches the X-Club-Id header as the player's club.
    */
   async create(req: Request, res: Response): Promise<void> {
     // Validate request body
@@ -54,7 +57,8 @@ export class PlayerController {
       return;
     }
 
-    const result = await playerService.createPlayer(parsed.data);
+    const clubId = getClubId(req);
+    const result = await playerService.createPlayer({ ...parsed.data, clubId });
 
     if (!result.success) {
       const statusCode = result.error.code === 'SHIRT_NUMBER_TAKEN' ? 409 : 400;

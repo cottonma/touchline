@@ -85,6 +85,7 @@ export const seasons = pgTable('seasons', {
 
 export const players = pgTable('players', {
   id: text('id').primaryKey(),
+  clubId: text('club_id').references(() => clubs.id),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
   shirtNumber: integer('shirt_number'),

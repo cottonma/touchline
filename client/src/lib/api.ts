@@ -6,6 +6,7 @@
 
 const API_BASE = '/api';
 const TOKEN_KEY = 'touchline_token';
+const CLUB_KEY = 'touchline_active_club';
 
 interface ApiError {
   error: string;
@@ -37,6 +38,11 @@ class ApiClient {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const activeClub = localStorage.getItem(CLUB_KEY);
+    if (activeClub) {
+      headers['X-Club-Id'] = activeClub;
     }
 
     const config: RequestInit = {

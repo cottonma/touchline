@@ -19,10 +19,10 @@ type ServiceResult<T> = { success: true; data: T } | { success: false; error: Pl
 
 export class PlayerService {
   /**
-   * Get all players.
+   * Get all players, optionally filtered by club.
    */
-  async getAllPlayers(includeInactive = false): Promise<PlayerRow[]> {
-    return playerRepository.findAll(includeInactive);
+  async getAllPlayers(includeInactive = false, clubId?: string): Promise<PlayerRow[]> {
+    return playerRepository.findAll(includeInactive, clubId);
   }
 
   /**
