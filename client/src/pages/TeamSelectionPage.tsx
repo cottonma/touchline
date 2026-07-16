@@ -168,6 +168,50 @@ export function TeamSelectionPage() {
     setEditablePlan(newPlan);
   }, [result, editablePlan]);
 
+  /** Change the sub minute for a rolling sub in a specific period */
+  const handleChangeSubMinute = useCallback((periodIdx: number, playerOffId: string, playerOnId: string, newMinute: number) => {
+    if (!result) return;
+    const basePlan = editablePlan ?? result.plan;
+    const period = basePlan.periods[periodIdx];
+    const periodDuration = period.endMinute - period.startMinute;
+
+    // Clamp minute to valid range (within the period, relative to period start)
+    const relativeMinute = Math.max(1, Math.min(periodDuration - 1, newMinute - period.startMinute));
+
+    const newPeriods = basePlan.periods.map((p, idx) => {
+      if (idx !== periodIdx) return p;
+      const newOnPitch = p.onPitch.map(pp => {
+        if (pp.playerId === playerOffId && pp.startMinute === 0) {
+          // Player going off — update their endMinute
+          return { ...pp, endMinute: relativeMinute };
+        }
+        if (pp.playerId === playerOnId && pp.startMinute > 0) {
+          // Player coming on — update their startMinute
+          return { ...pp, startMinute: relativeMinute };
+        }
+        return pp;
+      });
+      return { ...p, onPitch: newOnPitch };
+    });
+
+    // Also update the substitutions array
+    const newSubs = (basePlan.substitutions || []).map(sub => {
+      if (sub.period === periodIdx + 1 && sub.playerOffId === playerOffId && sub.playerOnId === playerOnId) {
+        return { ...sub, minute: period.startMinute + relativeMinute, periodMinute: relativeMinute };
+      }
+      return sub;
+    });
+
+    const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
+    const newPlan: SubstitutionPlan = {
+      ...basePlan,
+      periods: newPeriods,
+      substitutions: newSubs,
+      summary: newSummary,
+    };
+    setEditablePlan(newPlan);
+  }, [result, editablePlan]);
+
   if (fixturesLoading) {
     return <div className="text-muted-foreground py-12 text-center">Loading fixtures...</div>;
   }
@@ -262,6 +306,7 @@ export function TeamSelectionPage() {
               onToggleEditMode={() => setIsEditMode(!isEditMode)}
               onResetPlan={handleResetPlan}
               onApprove={handleApprove}
+              onChangeSubMinute={handleChangeSubMinute}
               onSelectPlayer={(periodIdx, playerId) => {
                 if (!isEditMode) return;
                 const period = currentPlan.periods[periodIdx];
@@ -335,6 +380,7 @@ interface TeamSelectionResultsProps {
   onApprove: () => void;
   onSelectPlayer: (periodIdx: number, playerId: string) => void;
   onChangePosition: (periodIdx: number, playerId: string, newPosition: string) => void;
+  onChangeSubMinute: (periodIdx: number, playerOffId: string, playerOnId: string, newMinute: number) => void;
 }
 
 function TeamSelectionResults({
@@ -350,6 +396,7 @@ function TeamSelectionResults({
   onApprove,
   onSelectPlayer,
   onChangePosition,
+  onChangeSubMinute,
 }: TeamSelectionResultsProps) {
   const { config } = result;
   const periodDuration = config.matchDurationMinutes / config.periods;
@@ -459,11 +506,36 @@ function TeamSelectionResults({
                 editSwapState={editSwapState}
                 onSelectPlayer={onSelectPlayer}
                 onChangePosition={onChangePosition}
+                onChangeSubMinute={onChangeSubMinute}
               />
             ))}
           </div>
         </CardContent>
       </Card>
+
+      {/* Balance Indicator */}
+      {(() => {
+        const outfieldPlayers = plan.summary.filter(s => s.gkMinutes === 0);
+        if (outfieldPlayers.length === 0) return null;
+        const minTime = Math.min(...outfieldPlayers.map(s => s.totalMinutes));
+        const maxTime = Math.max(...outfieldPlayers.map(s => s.totalMinutes));
+        const difference = maxTime - minTime;
+        const isBalanced = difference <= config.toleranceMinutes;
+
+        return isBalanced ? (
+          <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+            <Check className="h-4 w-4" />
+            <span className="font-medium">✓ Balanced</span>
+            <span>— all players within ±{config.toleranceMinutes} min ({difference} min difference)</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="font-medium">⚠ Imbalance</span>
+            <span>— {difference} min difference (target: ±{config.toleranceMinutes} min)</span>
+          </div>
+        );
+      })()}
 
       {/* Player time summary table */}
       <Card>
@@ -527,6 +599,7 @@ interface PeriodCardProps {
   editSwapState: { periodIdx: number; playerId: string } | null;
   onSelectPlayer: (periodIdx: number, playerId: string) => void;
   onChangePosition: (periodIdx: number, playerId: string, newPosition: string) => void;
+  onChangeSubMinute: (periodIdx: number, playerOffId: string, playerOnId: string, newMinute: number) => void;
 }
 
 function PeriodCard({
@@ -538,6 +611,7 @@ function PeriodCard({
   editSwapState,
   onSelectPlayer,
   onChangePosition,
+  onChangeSubMinute,
 }: PeriodCardProps) {
   const isSelectedPeriod = editSwapState?.periodIdx === periodIdx;
 
@@ -571,6 +645,11 @@ function PeriodCard({
           const subMinute = leavesEarly ? period.startMinute + pp.endMinute : null;
           const isSelected = isSelectedPeriod && editSwapState?.playerId === pp.playerId;
 
+          // Find the player coming on for this player (to link the sub minute edit)
+          const matchingArrival = leavesEarly
+            ? arrivingPlayers.find((ap) => ap.startMinute === pp.endMinute)
+            : null;
+
           return (
             <div
               key={pp.playerId}
@@ -602,7 +681,22 @@ function PeriodCard({
               {leavesEarly && (
                 <>
                   <span className="text-red-600 font-bold text-sm leading-none">▼</span>
-                  <span className="text-red-600 text-[10px]">{subMinute}'</span>
+                  {isEditMode && matchingArrival ? (
+                    <input
+                      type="number"
+                      value={subMinute ?? ''}
+                      min={period.startMinute + 1}
+                      max={period.endMinute - 1}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onChangeSubMinute(periodIdx, pp.playerId, matchingArrival.playerId, Number(e.target.value));
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-10 h-6 text-center text-[10px] text-red-600 border border-red-300 rounded bg-white"
+                    />
+                  ) : (
+                    <span className="text-red-600 text-[10px]">{subMinute}'</span>
+                  )}
                 </>
               )}
             </div>
@@ -620,6 +714,9 @@ function PeriodCard({
               const posLabel = POSITION_SHORT[pp.position] ?? pp.position;
               const isSelected = isSelectedPeriod && editSwapState?.playerId === pp.playerId;
 
+              // Find the player who left for this sub
+              const matchingLeaver = startersAll.find((sp) => sp.endMinute === pp.startMinute && sp.endMinute < periodDuration);
+
               return (
                 <div
                   key={`sub-${pp.playerId}`}
@@ -630,7 +727,22 @@ function PeriodCard({
                 >
                   <span className="text-green-600 font-bold text-sm leading-none">▲</span>
                   <span className="text-green-700 font-medium">{playerName}</span>
-                  <span className="text-green-600 text-[10px]">{onMinute}'</span>
+                  {isEditMode && matchingLeaver ? (
+                    <input
+                      type="number"
+                      value={onMinute}
+                      min={period.startMinute + 1}
+                      max={period.endMinute - 1}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onChangeSubMinute(periodIdx, matchingLeaver.playerId, pp.playerId, Number(e.target.value));
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-10 h-6 text-center text-[10px] text-green-600 border border-green-300 rounded bg-white"
+                    />
+                  ) : (
+                    <span className="text-green-600 text-[10px]">{onMinute}'</span>
+                  )}
                   <Badge variant="secondary" className="text-[10px] w-8 justify-center">{posLabel}</Badge>
                 </div>
               );
