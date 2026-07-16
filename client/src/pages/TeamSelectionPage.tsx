@@ -168,6 +168,56 @@ export function TeamSelectionPage() {
     setEditablePlan(newPlan);
   }, [result, editablePlan]);
 
+  /** Swap a starter with a sub — starter becomes the sub, sub becomes the starter */
+  const handleSwapStarterWithSub = useCallback((periodIdx: number, starterId: string, subId: string) => {
+    if (!result) return;
+    const basePlan = editablePlan ?? result.plan;
+    const period = basePlan.periods[periodIdx];
+    const periodDuration = period.endMinute - period.startMinute;
+
+    const starterEntry = period.onPitch.find((pp) => pp.playerId === starterId);
+    const subEntry = period.onPitch.find((pp) => pp.playerId === subId);
+    if (!starterEntry || !subEntry) return;
+
+    // Sub's current timing
+    const subMinute = subEntry.startMinute;
+
+    const newPeriods = basePlan.periods.map((p, idx) => {
+      if (idx !== periodIdx) return p;
+      const newOnPitch = p.onPitch.map((pp) => {
+        if (pp.playerId === starterId) {
+          // Starter becomes the sub — comes on at the sub's minute
+          return { ...pp, startMinute: subMinute, endMinute: periodDuration };
+        }
+        if (pp.playerId === subId) {
+          // Sub becomes the starter — plays from start, leaves at sub minute
+          return { ...pp, startMinute: 0, endMinute: subMinute };
+        }
+        return pp;
+      });
+      return { ...p, onPitch: newOnPitch };
+    });
+
+    // Update substitutions array
+    const newSubs = (basePlan.substitutions || []).map(sub => {
+      if (sub.period === periodIdx + 1 && sub.playerOffId === starterId && sub.playerOnId === subId) {
+        // Reverse: now the sub (old subId) leaves and the starter (old starterId) comes on
+        return { ...sub, playerOffId: subId, playerOnId: starterId };
+      }
+      return sub;
+    });
+
+    const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
+    const newPlan: SubstitutionPlan = {
+      ...basePlan,
+      periods: newPeriods,
+      substitutions: newSubs,
+      summary: newSummary,
+    };
+    setEditablePlan(newPlan);
+    setEditSwapState(null);
+  }, [result, editablePlan]);
+
   /** Change the sub minute for a rolling sub in a specific period */
   const handleChangeSubMinute = useCallback((periodIdx: number, playerOffId: string, playerOnId: string, newMinute: number) => {
     if (!result) return;
@@ -337,8 +387,28 @@ export function TeamSelectionPage() {
                     handleSwapPlayers(periodIdx, editSwapState.playerId, playerId);
                   } else if (firstIsOnBench && secondIsOnPitch) {
                     handleSwapPlayers(periodIdx, playerId, editSwapState.playerId);
+                  } else if (firstIsOnPitch && secondIsOnPitch) {
+                    // Both on pitch — check if one is a starter and one is a sub
+                    const firstEntry = period.onPitch.find((pp) => pp.playerId === editSwapState.playerId);
+                    const secondEntry = period.onPitch.find((pp) => pp.playerId === playerId);
+                    if (firstEntry && secondEntry) {
+                      const firstIsStarter = firstEntry.startMinute === 0;
+                      const secondIsStarter = secondEntry.startMinute === 0;
+                      if (firstIsStarter && !secondIsStarter) {
+                        // Starter tapped first, sub tapped second — swap their roles
+                        handleSwapStarterWithSub(periodIdx, editSwapState.playerId, playerId);
+                      } else if (!firstIsStarter && secondIsStarter) {
+                        // Sub tapped first, starter tapped second — swap their roles
+                        handleSwapStarterWithSub(periodIdx, playerId, editSwapState.playerId);
+                      } else {
+                        // Both starters or both subs — just reselect
+                        setEditSwapState({ periodIdx, playerId });
+                      }
+                    } else {
+                      setEditSwapState({ periodIdx, playerId });
+                    }
                   } else {
-                    // Both on same area (both on pitch or both on bench) — just reselect
+                    // Both on bench — just reselect
                     setEditSwapState({ periodIdx, playerId });
                   }
                 }
