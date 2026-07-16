@@ -15,6 +15,7 @@ import { aiCoachRoutes } from './ai-coach.routes.js';
 import { seasonRoutes } from './season.routes.js';
 import { dashboardRoutes } from './dashboard.routes.js';
 import { oppositionNotesRoutes } from './opposition-notes.routes.js';
+import { scoutReportRoutes } from './scout-report.routes.js';
 import { clubRoutes } from './club.routes.js';
 
 /**
@@ -44,6 +45,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/seasons', seasonRoutes);
   app.use('/api/clubs', clubRoutes);
   app.use('/api/opposition-notes', oppositionNotesRoutes);
+  app.use('/api/scout-reports', scoutReportRoutes);
 
   // 404 handler for unmatched API routes
   app.use('/api/*', (_req, res) => {

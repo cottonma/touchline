@@ -12,6 +12,7 @@ import {
   Bot,
   Settings,
   Shield,
+  Eye,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -42,6 +43,7 @@ export const navItems: NavItem[] = [
   { label: 'Availability', path: '/availability', icon: CheckCircle, primary: false },
   { label: 'Team Selection', path: '/team-selection', icon: UserCheck, primary: true },
   { label: 'Match Day', path: '/match-day', icon: PlayCircle, primary: true },
+  { label: 'Scout Report', path: '/scout-report', icon: Eye, primary: false },
   { label: 'Statistics', path: '/stats', icon: BarChart3, primary: false },
   { label: 'Development', path: '/development', icon: Target, primary: false },
   { label: 'Training', path: '/training', icon: Dumbbell, primary: false },
@@ -63,7 +65,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Match Week',
     items: navItems.filter((i) =>
-      ['/availability', '/team-selection', '/match-day'].includes(i.path)
+      ['/availability', '/team-selection', '/match-day', '/scout-report'].includes(i.path)
     ),
   },
   {

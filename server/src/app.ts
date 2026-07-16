@@ -77,6 +77,39 @@ async function autoSetup() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS scout_reports (
+      id TEXT PRIMARY KEY,
+      fixture_id TEXT REFERENCES fixtures(id),
+      opponent TEXT NOT NULL,
+      scout_name TEXT,
+      date TEXT,
+      final_score TEXT,
+      formation TEXT,
+      style_of_play TEXT,
+      key_players TEXT,
+      attack_direction TEXT,
+      chance_creation TEXT,
+      attacking_notes TEXT,
+      defensive_style TEXT,
+      weaknesses TEXT,
+      defensive_notes TEXT,
+      corners_rating TEXT,
+      gk_rating TEXT,
+      gk_distribution TEXT,
+      set_piece_notes TEXT,
+      threats TEXT,
+      opportunities TEXT,
+      attack_by TEXT,
+      defend_by TEXT,
+      confidence_rating TEXT,
+      overall_comments TEXT,
+      team_performance_rating INTEGER,
+      team_strengths TEXT,
+      team_weaknesses TEXT,
+      team_notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Add columns that may be missing (PostgreSQL uses ADD COLUMN IF NOT EXISTS)

@@ -307,3 +307,50 @@ export const oppositionNotes = pgTable('opposition_notes', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+// ============================================================
+// SCOUT REPORTS
+// ============================================================
+
+export const scoutReports = pgTable('scout_reports', {
+  id: text('id').primaryKey(),
+  fixtureId: text('fixture_id').references(() => fixtures.id),
+  opponent: text('opponent').notNull(),
+  scoutName: text('scout_name'),
+  date: text('date'),
+  finalScore: text('final_score'),
+  // Section 1: Team Overview
+  formation: text('formation'),
+  styleOfPlay: text('style_of_play'), // JSON array of selected styles
+  // Section 2: Key Players
+  keyPlayers: text('key_players'), // JSON array: [{name, position, strengths, threatLevel}]
+  // Section 3: Attacking Threat
+  attackDirection: text('attack_direction'), // "left" | "centre" | "right" | "even"
+  chanceCreation: text('chance_creation'), // JSON array of selected options
+  attackingNotes: text('attacking_notes'),
+  // Section 4: Defensive Observations
+  defensiveStyle: text('defensive_style'), // JSON array of selected options
+  weaknesses: text('weaknesses'), // JSON array of selected options
+  defensiveNotes: text('defensive_notes'),
+  // Section 5: Set Pieces
+  cornersRating: text('corners_rating'), // "dangerous" | "average" | "weak"
+  gkRating: text('gk_rating'), // "strong" | "average" | "weak"
+  gkDistribution: text('gk_distribution'), // "short" | "long" | "mixed"
+  setPieceNotes: text('set_piece_notes'),
+  // Section 6: Threats & Opportunities
+  threats: text('threats'), // JSON array of 3 strings
+  opportunities: text('opportunities'), // JSON array of 3 strings
+  // Section 7: Match Preparation
+  attackBy: text('attack_by'),
+  defendBy: text('defend_by'),
+  confidenceRating: text('confidence_rating'), // "very_difficult" | "difficult" | "competitive" | "favourable" | "very_favourable"
+  overallComments: text('overall_comments'),
+  // Section 8: How WE played (team performance)
+  teamPerformanceRating: integer('team_performance_rating'), // 1-10
+  teamStrengths: text('team_strengths'),
+  teamWeaknesses: text('team_weaknesses'),
+  teamNotes: text('team_notes'),
+  // Meta
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});

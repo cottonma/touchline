@@ -19,6 +19,7 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { AiCoachPage } from '@/pages/AiCoachPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ManageUsersPage } from '@/pages/ManageUsersPage';
+import { ScoutReportPage } from '@/pages/ScoutReportPage';
 import { SetupWizardPage } from '@/pages/SetupWizardPage';
 
 /**
@@ -66,6 +67,7 @@ function App() {
                 <Route path="availability" element={<AvailabilityPage />} />
                 <Route path="team-selection" element={<TeamSelectionPage />} />
                 <Route path="match-day" element={<MatchDayPage />} />
+                <Route path="scout-report" element={<ScoutReportPage />} />
                 <Route path="stats" element={<StatsPage />} />
                 <Route path="development" element={<DevelopmentPage />} />
                 <Route path="training" element={<TrainingPage />} />
