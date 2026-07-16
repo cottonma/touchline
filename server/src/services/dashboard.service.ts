@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
-import { players, fixtures, matchResults, playingTime, availability } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { players, fixtures, matchResults, playingTime, availability, seasons } from '../db/schema.js';
+import { eq, desc, and } from 'drizzle-orm';
 
 /**
  * Dashboard Service - Aggregates data from all modules into a single dashboard response.
@@ -61,15 +61,29 @@ export interface DashboardData {
 }
 
 export class DashboardService {
-  async getDashboardData(): Promise<DashboardData> {
+  async getDashboardData(clubId?: string): Promise<DashboardData> {
     const today = new Date().toISOString().split('T')[0];
 
-    // Squad
-    const allPlayers = await db.select().from(players).where(eq(players.isActive, true));
+    // Get the active season for this club (for filtering fixtures)
+    let seasonId: string | undefined;
+    if (clubId) {
+      const [season] = await db.select().from(seasons).where(and(eq(seasons.clubId, clubId), eq(seasons.isActive, true))).limit(1);
+      seasonId = season?.id;
+    }
+
+    // Squad (filtered by club)
+    const playerConditions = [eq(players.isActive, true)];
+    if (clubId) playerConditions.push(eq(players.clubId, clubId));
+    const allPlayers = await db.select().from(players).where(and(...playerConditions));
     const gkVolunteers = allPlayers.filter((p) => p.isGkVolunteer).length;
 
-    // Next fixture
-    const allFixtures = await db.select().from(fixtures);
+    // Fixtures (filtered by season)
+    let allFixtures;
+    if (seasonId) {
+      allFixtures = await db.select().from(fixtures).where(eq(fixtures.seasonId, seasonId));
+    } else {
+      allFixtures = await db.select().from(fixtures);
+    }
     const upcoming = allFixtures
       .filter((f) => f.status === 'scheduled' && f.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date));

@@ -5,8 +5,9 @@ import { dashboardService } from '../services/dashboard.service.js';
 type Request = ExpressRequest;
 
 export class DashboardController {
-  async getDashboard(_req: Request, res: Response): Promise<void> {
-    const data = await dashboardService.getDashboardData();
+  async getDashboard(req: Request, res: Response): Promise<void> {
+    const clubId = req.headers['x-club-id'] as string | undefined;
+    const data = await dashboardService.getDashboardData(clubId);
     res.json({ data });
   }
 }
