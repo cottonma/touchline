@@ -244,6 +244,7 @@ export function ManageUsersPage() {
                   onChange={(e) => setRole(e.target.value)}
                 >
                   <option value="coach">Coach</option>
+                  <option value="scout">Scout</option>
                   <option value="admin">Admin</option>
                 </Select>
               </div>

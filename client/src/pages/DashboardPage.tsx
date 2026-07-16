@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useDashboard } from '@/hooks/use-dashboard';
+import { useAuth } from '@/lib/auth';
 import { useEffect } from 'react';
 
 /**
@@ -12,7 +13,15 @@ import { useEffect } from 'react';
  */
 export function DashboardPage() {
   const { data, isLoading } = useDashboard();
+  const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect scouts straight to scout report page
+  useEffect(() => {
+    if (user?.role === 'scout') {
+      navigate('/scout-report', { replace: true });
+    }
+  }, [user, navigate]);
 
   // Redirect to setup wizard if no players and setup not completed
   useEffect(() => {

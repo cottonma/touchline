@@ -11,6 +11,13 @@ import { TeamSwitcher } from './TeamSwitcher';
  */
 export function Sidebar() {
   const { user, isAdmin, logout } = useAuth();
+  const isScout = user?.role === 'scout';
+
+  // Scouts only see the scout report
+  const scoutPaths = ['/scout-report'];
+  const filteredGroups = isScout
+    ? [{ label: 'Scout', items: navGroups.flatMap(g => g.items).filter(i => scoutPaths.includes(i.path)) }]
+    : navGroups;
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 md:pt-14 sidebar-dark">
@@ -18,6 +25,10 @@ export function Sidebar() {
       <div className="px-3 pt-4 pb-2">
         {isAdmin ? (
           <TeamSwitcher />
+        ) : isScout ? (
+          <div className="px-3 py-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
+            Scout View
+          </div>
         ) : (
           <div className="px-3 py-2 text-xs font-medium text-slate-400 uppercase tracking-wider">
             My Team
@@ -26,7 +37,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-3">
-        {navGroups.map((group) => (
+        {filteredGroups.map((group) => (
           <div key={group.label} className="mb-5">
             <h3 className="nav-group-label mb-2 px-3">
               {group.label}
