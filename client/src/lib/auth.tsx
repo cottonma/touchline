@@ -63,18 +63,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Verify token is still valid — but don't log out on failure if we have cached user data
     api.get<AuthUser>('/auth/me')
       .then((userData) => {
         setUser(userData);
         localStorage.setItem(USER_KEY, JSON.stringify(userData));
-        // Set default active club if not set
         if (!activeClubId && userData.clubIds.length > 0) {
           setActiveClubId(userData.clubIds[0]);
         }
       })
       .catch(() => {
-        // Token invalid or expired
-        logout();
+        // If we have cached user data, keep it (token might be temporarily failing)
+        const cached = localStorage.getItem(USER_KEY);
+        if (!cached) {
+          logout();
+        }
+        // Otherwise just continue with cached user data
       })
       .finally(() => {
         setIsLoading(false);
