@@ -56,6 +56,7 @@ export function TeamSelectionPage() {
   const [showSubMinuteSlider, setShowSubMinuteSlider] = useState<{
     periodIdx: number; playerOffId: string; playerOnId: string; currentMinute: number; min: number; max: number;
   } | null>(null);
+  const [gkWarning, setGkWarning] = useState<{ periodIdx: number; onPitchPlayerId: string; benchPlayerId: string } | null>(null);
   // Active quarter for mobile (-1 = show all, 0-3 = single quarter detail)
   const [activeQuarter, setActiveQuarter] = useState(-1);
 
@@ -118,25 +119,36 @@ export function TeamSelectionPage() {
   const handleSwapPlayers = useCallback((periodIdx: number, onPitchPlayerId: string, benchPlayerId: string) => {
     if (!result) return;
     const basePlan = editablePlan ?? result.plan;
-    const newPeriods = basePlan.periods.map((period, idx) => {
-      if (idx !== periodIdx) return period;
-      const newOnPitch = period.onPitch.map((pp) => {
+    const period = basePlan.periods[periodIdx];
+    const onPitchEntry = period.onPitch.find((pp) => pp.playerId === onPitchPlayerId);
+
+    // If swapping the GK, check if bench player is a GK volunteer
+    if (onPitchEntry?.isGk) {
+      const benchPlayer = result.availablePlayers.find((p) => p.id === benchPlayerId);
+      if (!benchPlayer?.isGkVolunteer) {
+        // Show warning — don't proceed
+        setGkWarning({ periodIdx, onPitchPlayerId, benchPlayerId });
+        setEditSwapState(null);
+        return;
+      }
+    }
+
+    const newPeriods = basePlan.periods.map((p, idx) => {
+      if (idx !== periodIdx) return p;
+      const newOnPitch = p.onPitch.map((pp) => {
         if (pp.playerId === onPitchPlayerId) {
-          // If the on-pitch player is the GK, the bench player takes over GK duties
-          // Otherwise, assign the bench player to the same formation position
+          // GK: bench player takes over GK duties
+          // Outfield: bench player inherits the formation slot position
           if (pp.isGk) {
             return { ...pp, playerId: benchPlayerId, position: 'GK', isGk: true };
           }
-          // Non-GK: bench player inherits the formation slot position
           return { ...pp, playerId: benchPlayerId };
         }
         return pp;
       });
-      // Update gkPlayerId on the period if the GK was swapped
-      const swappedEntry = period.onPitch.find((pp) => pp.playerId === onPitchPlayerId);
-      const newGkPlayerId = swappedEntry?.isGk ? benchPlayerId : period.gkPlayerId;
-      const newOffPitch = period.offPitch.filter((id) => id !== benchPlayerId).concat(onPitchPlayerId);
-      return { ...period, onPitch: newOnPitch, offPitch: newOffPitch, gkPlayerId: newGkPlayerId };
+      const newGkPlayerId = onPitchEntry?.isGk ? benchPlayerId : p.gkPlayerId;
+      const newOffPitch = p.offPitch.filter((id) => id !== benchPlayerId).concat(onPitchPlayerId);
+      return { ...p, onPitch: newOnPitch, offPitch: newOffPitch, gkPlayerId: newGkPlayerId };
     });
     const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
     setEditablePlan({ ...basePlan, periods: newPeriods, summary: newSummary });
@@ -154,6 +166,36 @@ export function TeamSelectionPage() {
     });
     setEditablePlan({ ...basePlan, periods: newPeriods });
     setShowPositionPicker(false);
+  }, [result, editablePlan]);
+
+  /** Swap positions between two on-pitch starters */
+  const handleSwapPositions = useCallback((periodIdx: number, playerAId: string, playerBId: string) => {
+    if (!result) return;
+    const basePlan = editablePlan ?? result.plan;
+    const period = basePlan.periods[periodIdx];
+    const entryA = period.onPitch.find((pp) => pp.playerId === playerAId);
+    const entryB = period.onPitch.find((pp) => pp.playerId === playerBId);
+    if (!entryA || !entryB) return;
+
+    const newPeriods = basePlan.periods.map((p, idx) => {
+      if (idx !== periodIdx) return p;
+      const newOnPitch = p.onPitch.map((pp) => {
+        if (pp.playerId === playerAId) {
+          return { ...pp, position: entryB.position, isGk: entryB.isGk };
+        }
+        if (pp.playerId === playerBId) {
+          return { ...pp, position: entryA.position, isGk: entryA.isGk };
+        }
+        return pp;
+      });
+      // Update gkPlayerId if one of them was GK
+      let newGkPlayerId = p.gkPlayerId;
+      if (entryA.isGk) newGkPlayerId = playerBId;
+      else if (entryB.isGk) newGkPlayerId = playerAId;
+      return { ...p, onPitch: newOnPitch, gkPlayerId: newGkPlayerId };
+    });
+    setEditablePlan({ ...basePlan, periods: newPeriods });
+    setEditSwapState(null);
   }, [result, editablePlan]);
 
   /** Swap a starter with a sub — starter becomes the sub, sub becomes the starter */
@@ -255,6 +297,7 @@ export function TeamSelectionPage() {
         const secondIsStarter = secondEntry.startMinute === 0;
         if (firstIsStarter && !secondIsStarter) handleSwapStarterWithSub(periodIdx, editSwapState.playerId, playerId);
         else if (!firstIsStarter && secondIsStarter) handleSwapStarterWithSub(periodIdx, playerId, editSwapState.playerId);
+        else if (firstIsStarter && secondIsStarter) handleSwapPositions(periodIdx, editSwapState.playerId, playerId);
         else setEditSwapState({ periodIdx, playerId });
       }
     } else {
@@ -528,6 +571,18 @@ export function TeamSelectionPage() {
           }}
           onClose={() => setShowSubMinuteSlider(null)}
           plan={currentPlan!}
+        />
+      )}
+
+      {/* GK swap warning overlay */}
+      {gkWarning && result && (
+        <GkWarningOverlay
+          benchPlayerName={
+            result.availablePlayers.find(p => p.id === gkWarning.benchPlayerId)
+              ? `${result.availablePlayers.find(p => p.id === gkWarning.benchPlayerId)!.firstName} ${result.availablePlayers.find(p => p.id === gkWarning.benchPlayerId)!.lastName}`
+              : 'This player'
+          }
+          onClose={() => setGkWarning(null)}
         />
       )}
     </div>
@@ -905,6 +960,32 @@ function PositionPickerOverlay({ currentPosition, onSelect, onClose }: {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── GK WARNING OVERLAY ──────────────────────────────────────────────────────
+
+function GkWarningOverlay({ benchPlayerName, onClose }: {
+  benchPlayerName: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full bg-card rounded-t-2xl p-4 pb-8 animate-in slide-in-from-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-4" />
+        <div className="flex items-center gap-3 mb-3">
+          <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          </div>
+          <h3 className="text-base font-semibold">Can't put in goal</h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-5">
+          <span className="font-medium text-foreground">{benchPlayerName}</span> isn't marked as a GK volunteer. Only players flagged as willing to go in goal can replace the goalkeeper.
+        </p>
+        <Button className="w-full h-12" onClick={onClose}>Got it</Button>
       </div>
     </div>
   );

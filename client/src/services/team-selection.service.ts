@@ -69,6 +69,7 @@ export interface PlayerForSelection {
   primaryPosition: string;
   secondaryPosition?: string | null;
   tertiaryPosition?: string | null;
+  isGkVolunteer?: boolean;
 }
 
 export interface TeamSelectionResult {
