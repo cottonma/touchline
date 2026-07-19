@@ -122,13 +122,21 @@ export function TeamSelectionPage() {
       if (idx !== periodIdx) return period;
       const newOnPitch = period.onPitch.map((pp) => {
         if (pp.playerId === onPitchPlayerId) {
-          const benchPlayer = result.availablePlayers.find((p) => p.id === benchPlayerId);
-          return { ...pp, playerId: benchPlayerId, position: benchPlayer?.primaryPosition ?? pp.position };
+          // If the on-pitch player is the GK, the bench player takes over GK duties
+          // Otherwise, assign the bench player to the same formation position
+          if (pp.isGk) {
+            return { ...pp, playerId: benchPlayerId, position: 'GK', isGk: true };
+          }
+          // Non-GK: bench player inherits the formation slot position
+          return { ...pp, playerId: benchPlayerId };
         }
         return pp;
       });
+      // Update gkPlayerId on the period if the GK was swapped
+      const swappedEntry = period.onPitch.find((pp) => pp.playerId === onPitchPlayerId);
+      const newGkPlayerId = swappedEntry?.isGk ? benchPlayerId : period.gkPlayerId;
       const newOffPitch = period.offPitch.filter((id) => id !== benchPlayerId).concat(onPitchPlayerId);
-      return { ...period, onPitch: newOnPitch, offPitch: newOffPitch };
+      return { ...period, onPitch: newOnPitch, offPitch: newOffPitch, gkPlayerId: newGkPlayerId };
     });
     const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
     setEditablePlan({ ...basePlan, periods: newPeriods, summary: newSummary });
