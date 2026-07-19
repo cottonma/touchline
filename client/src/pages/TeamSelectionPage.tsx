@@ -320,7 +320,7 @@ export function TeamSelectionPage() {
   }
 
   return (
-    <div className="pb-32">
+    <div className="pb-32 md:pb-4">
       {/* Header */}
       <div className="px-1 pt-1 pb-3">
         <h2 className="text-xl font-bold tracking-tight">Team Selection</h2>
@@ -453,9 +453,9 @@ export function TeamSelectionPage() {
                   </div>
                 )}
 
-                {/* All quarters view — compact grid */}
+                {/* All quarters view — compact grid, 2 cols mobile, 4 cols desktop */}
                 {activeQuarter === -1 ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
                     {currentPlan.periods.map((period, idx) => (
                       <CompactPeriodCard
                         key={period.period}
@@ -873,54 +873,51 @@ function BottomActionBar({
   selectedPlayerInfo, onToggleEditMode, onResetPlan, onApprove, onDeselect, onShowPositionPicker,
 }: BottomActionBarProps) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t shadow-lg safe-area-bottom">
-      <div className="px-4 py-3">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t shadow-lg safe-area-bottom md:static md:mt-4 md:border md:rounded-lg md:shadow-sm">
+      <div className="px-4 py-3 md:max-w-none">
         {/* When a player is selected in edit mode, show contextual actions */}
         {isEditMode && selectedPlayerInfo ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{selectedPlayerInfo.playerSummary?.playerName}</span>
-                {selectedPlayerInfo.onPitchEntry && (
-                  <Badge variant="secondary" className="text-xs">
-                    {POSITION_SHORT[selectedPlayerInfo.onPitchEntry.position] ?? selectedPlayerInfo.onPitchEntry.position}
-                  </Badge>
-                )}
-              </div>
-              <button onClick={onDeselect} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                <X className="h-5 w-5 text-muted-foreground" />
-              </button>
-            </div>
-            <div className="flex gap-2">
-              {selectedPlayerInfo.onPitchEntry && !selectedPlayerInfo.isOnBench && (
-                <Button variant="outline" size="sm" className="flex-1 h-11" onClick={onShowPositionPicker}>
-                  <ChevronDown className="h-4 w-4" />
-                  Change Position
-                </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{selectedPlayerInfo.playerSummary?.playerName}</span>
+              {selectedPlayerInfo.onPitchEntry && (
+                <Badge variant="secondary" className="text-xs">
+                  {POSITION_SHORT[selectedPlayerInfo.onPitchEntry.position] ?? selectedPlayerInfo.onPitchEntry.position}
+                </Badge>
               )}
-              <p className="text-xs text-muted-foreground self-center flex-1">
-                {selectedPlayerInfo.isOnBench ? 'Tap a player on pitch to swap' : 'Tap a bench player to swap'}
-              </p>
             </div>
+            {selectedPlayerInfo.onPitchEntry && !selectedPlayerInfo.isOnBench && (
+              <Button variant="outline" size="sm" className="h-10" onClick={onShowPositionPicker}>
+                <ChevronDown className="h-4 w-4" />
+                Change Position
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground flex-1">
+              {selectedPlayerInfo.isOnBench ? 'Tap a player on pitch to swap' : 'Tap a bench player to swap'}
+            </p>
+            <button onClick={onDeselect} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
+              <X className="h-5 w-5 text-muted-foreground" />
+            </button>
           </div>
         ) : (
           /* Default action bar — edit/approve controls */
           <div className="flex gap-2">
             <Button
               variant={isEditMode ? 'default' : 'outline'}
-              className="flex-1 h-12"
+              className="flex-1 h-12 md:flex-none md:h-10"
               onClick={onToggleEditMode}
             >
               <Edit3 className="h-4 w-4" />
               {isEditMode ? 'Done' : 'Edit Plan'}
             </Button>
             {wasManuallyEdited && (
-              <Button variant="outline" className="h-12" onClick={onResetPlan}>
+              <Button variant="outline" className="h-12 md:h-10" onClick={onResetPlan}>
                 <RotateCcw className="h-4 w-4" />
+                <span className="hidden md:inline">Reset</span>
               </Button>
             )}
             {!approved && (
-              <Button className="flex-1 h-12" onClick={onApprove} disabled={approvePending}>
+              <Button className="flex-1 h-12 md:flex-none md:h-10" onClick={onApprove} disabled={approvePending}>
                 <CheckCircle className="h-4 w-4" />
                 {approvePending ? 'Saving...' : 'Approve'}
               </Button>
@@ -1068,7 +1065,8 @@ function MobileTimeSummary({ plan, config }: { plan: SubstitutionPlan; config: E
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0">
-        <div className="space-y-2">
+        {/* Mobile: progress bars */}
+        <div className="md:hidden space-y-2">
           {sorted.map((s) => (
             <div key={s.playerId} className="flex items-center gap-3 min-h-[36px]">
               <span className="text-xs font-medium w-24 truncate">{s.playerName}</span>
@@ -1087,6 +1085,45 @@ function MobileTimeSummary({ plan, config }: { plan: SubstitutionPlan; config: E
               <span className="text-xs font-bold tabular-nums w-10 text-right">{s.totalMinutes}m</span>
             </div>
           ))}
+        </div>
+
+        {/* Desktop: full table with quarter breakdown */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="pb-2 font-medium">Player</th>
+                {plan.periods.map((p) => (
+                  <th key={p.period} className="pb-2 font-medium text-right">Q{p.period}</th>
+                ))}
+                <th className="pb-2 font-medium text-right">Outfield</th>
+                <th className="pb-2 font-medium text-right">GK</th>
+                <th className="pb-2 font-medium text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((s) => {
+                const quarterMinutes = plan.periods.map((period) => {
+                  const entry = period.onPitch.find((pp) => pp.playerId === s.playerId);
+                  if (entry) return Math.round((entry.endMinute - entry.startMinute) * 10) / 10;
+                  return 0;
+                });
+                return (
+                  <tr key={s.playerId} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{s.playerName}</td>
+                    {quarterMinutes.map((mins, idx) => (
+                      <td key={idx} className={`py-2 text-right ${mins === 0 ? 'text-muted-foreground' : ''}`}>
+                        {mins > 0 ? `${mins}` : '-'}
+                      </td>
+                    ))}
+                    <td className="py-2 text-right">{s.outfieldMinutes}</td>
+                    <td className="py-2 text-right">{s.gkMinutes > 0 ? s.gkMinutes : '-'}</td>
+                    <td className="py-2 text-right font-bold">{s.totalMinutes}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </CardContent>
     </Card>
