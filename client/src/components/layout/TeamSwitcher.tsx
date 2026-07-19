@@ -37,9 +37,6 @@ export function TeamSwitcher() {
 
   return (
     <div className="px-3">
-      <label htmlFor="team-switcher" className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">
-        Active Team
-      </label>
       <select
         id="team-switcher"
         value={activeClubId || ''}

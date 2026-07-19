@@ -2,16 +2,17 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { MobileMenu } from './MobileMenu';
+import { TeamSwitcher } from './TeamSwitcher';
 import { useAuth } from '@/lib/auth';
 
 /**
  * Root application layout — football-themed.
  * Responsive navigation:
- * - Mobile: Dark header with hamburger menu + bottom navigation bar
+ * - Mobile: Dark header with hamburger menu + team switcher + bottom navigation bar
  * - Desktop: Dark fixed sidebar + dark header
  */
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -26,13 +27,20 @@ export function AppLayout() {
           {/* Logo */}
           <div className="flex items-center gap-2 md:w-64">
             <span className="text-xl">⚽</span>
-            <h1 className="logo-text text-lg">Touchline</h1>
+            <h1 className="logo-text text-lg hidden sm:inline">Touchline</h1>
           </div>
 
-          {/* Spacer */}
-          <div className="flex-1" />
+          {/* Mobile team switcher — admin only */}
+          {isAdmin && (
+            <div className="md:hidden flex-1 mx-2">
+              <TeamSwitcher />
+            </div>
+          )}
 
-          {/* User info (visible on all screens) */}
+          {/* Spacer (desktop) */}
+          <div className="flex-1 hidden md:block" />
+
+          {/* User info */}
           {user && (
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-300 hidden sm:inline">
