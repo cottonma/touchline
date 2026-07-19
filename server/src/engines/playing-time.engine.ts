@@ -586,9 +586,9 @@ function getFormationPositionSlots(formation: string): string[] {
       else for (let i = 0; i < count; i++) slots.push(`D${i + 1}`);
     } else if (isAttack) {
       if (count === 1) slots.push('CF');
-      else if (count === 2) slots.push('LW', 'RW');
-      else if (count === 3) slots.push('LW', 'CF', 'RW');
-      else for (let i = 0; i < count; i++) slots.push(`F${i + 1}`);
+      else if (count === 2) slots.push('CF', 'CF');
+      else if (count === 3) slots.push('CF', 'CF', 'CF');
+      else for (let i = 0; i < count; i++) slots.push('CF');
     } else {
       // Midfield
       if (count === 1) slots.push('CM');
@@ -623,7 +623,7 @@ const SLOT_CATEGORY: Record<string, string> = {};
 // Midfield slots
 ['CM', 'LM', 'RM', 'LCM', 'RCM'].forEach(s => SLOT_CATEGORY[s] = 'midfield');
 // Attack slots
-['CF', 'LW', 'RW'].forEach(s => SLOT_CATEGORY[s] = 'attack');
+['CF'].forEach(s => SLOT_CATEGORY[s] = 'attack');
 
 /**
  * Assign formation positions to players based on their primary, secondary, and tertiary positions.

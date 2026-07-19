@@ -21,16 +21,16 @@ import type { Fixture } from '@/services/fixture.service';
 const POSITION_SHORT: Record<string, string> = {
   GK: 'GK', CB: 'CB', LB: 'LB', RB: 'RB',
   CM: 'CM', LM: 'LM', RM: 'RM', CF: 'CF',
-  LW: 'LW', RW: 'RW', LCB: 'LCB', RCB: 'RCB',
-  LWB: 'LWB', RWB: 'RWB', LCM: 'LCM', RCM: 'RCM',
+  LCB: 'LCB', RCB: 'RCB', LWB: 'LWB', RWB: 'RWB',
+  LCM: 'LCM', RCM: 'RCM',
 };
 
-const ALL_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'LWB', 'RWB', 'CM', 'LM', 'RM', 'CF', 'LW', 'RW'];
+const ALL_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CF'];
 
 const POSITION_ORDER: Record<string, number> = {
   GK: 0, CB: 1, LB: 1, RB: 1, LCB: 1, RCB: 1, LWB: 1, RWB: 1,
   CM: 2, LM: 2, RM: 2, LCM: 2, RCM: 2,
-  CF: 3, LW: 3, RW: 3,
+  CF: 3,
 };
 
 function sortByPosition(a: PeriodPlayer, b: PeriodPlayer): number {
