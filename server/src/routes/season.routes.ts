@@ -2,19 +2,26 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { db } from '../db/index.js';
 import { seasons } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
+import { getClubId } from '../middleware/team-context.js';
 
 /**
  * Season API Routes
  *
- * GET /api/seasons - Get all seasons
+ * GET /api/seasons - Get seasons (filtered by active club)
  * PATCH /api/seasons/:id - Update season fields
  */
 
 const router = Router();
 
-router.get('/', asyncHandler(async (_req, res) => {
-  const allSeasons = await db.select().from(seasons);
+router.get('/', asyncHandler(async (req, res) => {
+  const clubId = getClubId(req);
+  let allSeasons;
+  if (clubId) {
+    allSeasons = await db.select().from(seasons).where(eq(seasons.clubId, clubId));
+  } else {
+    allSeasons = await db.select().from(seasons);
+  }
   res.json({ data: allSeasons });
 }));
 
