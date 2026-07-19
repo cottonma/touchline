@@ -56,8 +56,8 @@ export function TeamSelectionPage() {
   const [showSubMinuteSlider, setShowSubMinuteSlider] = useState<{
     periodIdx: number; playerOffId: string; playerOnId: string; currentMinute: number; min: number; max: number;
   } | null>(null);
-  // Active quarter for mobile (show one at a time)
-  const [activeQuarter, setActiveQuarter] = useState(0);
+  // Active quarter for mobile (-1 = show all, 0-3 = single quarter detail)
+  const [activeQuarter, setActiveQuarter] = useState(-1);
 
   const { data: fixtures, isLoading: fixturesLoading } = useFixtures({ status: 'upcoming' });
   const generatePlan = useGenerateTeamSelection();
@@ -79,7 +79,7 @@ export function TeamSelectionPage() {
     setEditablePlan(null);
     setIsEditMode(false);
     setApproved(false);
-    setActiveQuarter(0);
+    setActiveQuarter(-1);
 
     try {
       const response = await generatePlan.mutateAsync({ fixtureId: selectedFixtureId });
@@ -355,36 +355,85 @@ export function TeamSelectionPage() {
 
               {/* Quarter tabs — swipeable on mobile, show one quarter at a time */}
               <div>
-                <div className="flex border-b mb-3">
-                  {currentPlan.periods.map((period, idx) => (
+                {/* View toggle + Edit button inline */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex gap-1 bg-muted rounded-lg p-1">
                     <button
-                      key={period.period}
-                      onClick={() => setActiveQuarter(idx)}
-                      className={`flex-1 py-3 text-center text-sm font-medium transition-colors min-h-[44px] ${
-                        activeQuarter === idx
-                          ? 'border-b-2 border-primary text-primary'
-                          : 'text-muted-foreground'
+                      onClick={() => setActiveQuarter(-1)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        activeQuarter === -1 ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
                       }`}
                     >
-                      Q{period.period}
+                      All Quarters
                     </button>
-                  ))}
+                    {currentPlan.periods.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveQuarter(idx)}
+                        className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          activeQuarter === idx ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+                        }`}
+                      >
+                        Q{idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                  {!approved && (
+                    <Button
+                      variant={isEditMode ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-9"
+                      onClick={() => { setIsEditMode(!isEditMode); setEditSwapState(null); setShowPositionPicker(false); }}
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                      {isEditMode ? 'Done' : 'Edit'}
+                    </Button>
+                  )}
                 </div>
 
-                {/* Active quarter content */}
-                {currentPlan.periods[activeQuarter] && (
-                  <MobilePeriodCard
-                    period={currentPlan.periods[activeQuarter]}
-                    periodIdx={activeQuarter}
-                    plan={currentPlan}
-                    config={result.config}
-                    isEditMode={isEditMode}
-                    editSwapState={editSwapState}
-                    onPlayerTap={handlePlayerTap}
-                    onSubMinuteTap={(periodIdx, playerOffId, playerOnId, currentMin, min, max) => {
-                      setShowSubMinuteSlider({ periodIdx, playerOffId, playerOnId, currentMinute: currentMin, min, max });
-                    }}
-                  />
+                {isEditMode && (
+                  <div className="rounded-md bg-blue-50 p-2.5 text-xs text-blue-800 mb-3">
+                    Tap a player, then tap a bench player to swap them.
+                    {editSwapState && (
+                      <span className="block mt-1 font-medium text-blue-600">
+                        Player selected — tap another to swap, or tap again to deselect.
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* All quarters view — compact grid */}
+                {activeQuarter === -1 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {currentPlan.periods.map((period, idx) => (
+                      <CompactPeriodCard
+                        key={period.period}
+                        period={period}
+                        periodIdx={idx}
+                        plan={currentPlan}
+                        config={result.config}
+                        isEditMode={isEditMode}
+                        editSwapState={editSwapState}
+                        onPlayerTap={handlePlayerTap}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  /* Single quarter detail view */
+                  currentPlan.periods[activeQuarter] && (
+                    <MobilePeriodCard
+                      period={currentPlan.periods[activeQuarter]}
+                      periodIdx={activeQuarter}
+                      plan={currentPlan}
+                      config={result.config}
+                      isEditMode={isEditMode}
+                      editSwapState={editSwapState}
+                      onPlayerTap={handlePlayerTap}
+                      onSubMinuteTap={(periodIdx, playerOffId, playerOnId, currentMin, min, max) => {
+                        setShowSubMinuteSlider({ periodIdx, playerOffId, playerOnId, currentMinute: currentMin, min, max });
+                      }}
+                    />
+                  )
                 )}
               </div>
 
@@ -494,6 +543,101 @@ function FixtureTab({ fixture, selected, onSelect }: { fixture: Fixture; selecte
         {new Date(fixture.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
       </div>
     </button>
+  );
+}
+
+// ─── COMPACT PERIOD CARD (for all-quarters overview) ─────────────────────────
+
+interface CompactPeriodCardProps {
+  period: PeriodPlan;
+  periodIdx: number;
+  plan: SubstitutionPlan;
+  config: EngineConfig;
+  isEditMode: boolean;
+  editSwapState: { periodIdx: number; playerId: string } | null;
+  onPlayerTap: (periodIdx: number, playerId: string) => void;
+}
+
+function CompactPeriodCard({ period, periodIdx, plan, config, isEditMode, editSwapState, onPlayerTap }: CompactPeriodCardProps) {
+  const periodDuration = period.endMinute - period.startMinute;
+  const isSelectedPeriod = editSwapState?.periodIdx === periodIdx;
+  const startersAll = period.onPitch.filter((pp) => pp.startMinute === 0).sort(sortByPosition);
+  const arrivingPlayers = period.onPitch.filter((pp) => pp.startMinute > 0);
+
+  return (
+    <div className={`rounded-lg border p-2 ${isEditMode ? 'border-blue-300 bg-blue-50/30' : 'bg-card'}`}>
+      <div className="flex items-center justify-between mb-1.5">
+        <h4 className="text-xs font-bold">Q{period.period}</h4>
+        <span className="text-[10px] text-muted-foreground">{period.startMinute}–{period.endMinute}'</span>
+      </div>
+
+      {/* Starters */}
+      <div className="space-y-0.5">
+        {startersAll.map((pp) => {
+          const name = plan.summary.find((s) => s.playerId === pp.playerId)?.playerName ?? pp.playerId;
+          const firstName = name.split(' ')[0];
+          const leavesEarly = pp.endMinute < periodDuration;
+          const isSelected = isSelectedPeriod && editSwapState?.playerId === pp.playerId;
+
+          return (
+            <div
+              key={pp.playerId}
+              onClick={() => isEditMode && onPlayerTap(periodIdx, pp.playerId)}
+              className={`flex items-center gap-1 min-h-[28px] px-1 rounded transition-colors ${
+                isEditMode ? 'active:bg-blue-100' : ''
+              } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
+            >
+              <span className="text-[10px] font-bold text-muted-foreground w-6">{POSITION_SHORT[pp.position] ?? pp.position}</span>
+              <span className={`text-xs truncate flex-1 ${leavesEarly ? 'text-red-700' : ''}`}>{firstName}</span>
+              {leavesEarly && <span className="text-red-600 text-[10px]">▼</span>}
+            </div>
+          );
+        })}
+
+        {/* Subs arriving */}
+        {arrivingPlayers.map((pp) => {
+          const name = plan.summary.find((s) => s.playerId === pp.playerId)?.playerName ?? pp.playerId;
+          const firstName = name.split(' ')[0];
+          const isSelected = isSelectedPeriod && editSwapState?.playerId === pp.playerId;
+
+          return (
+            <div
+              key={`sub-${pp.playerId}`}
+              onClick={() => isEditMode && onPlayerTap(periodIdx, pp.playerId)}
+              className={`flex items-center gap-1 min-h-[28px] px-1 rounded transition-colors ${
+                isEditMode ? 'active:bg-blue-100' : ''
+              } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
+            >
+              <span className="text-green-600 text-[10px]">▲</span>
+              <span className="text-xs truncate flex-1 text-green-700">{firstName}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bench */}
+      {period.offPitch.length > 0 && (
+        <div className="mt-1 pt-1 border-t border-dashed">
+          <div className="flex flex-wrap gap-0.5">
+            {period.offPitch.map((pid) => {
+              const name = plan.summary.find((s) => s.playerId === pid)?.playerName?.split(' ')[0] ?? pid;
+              const isSelected = isSelectedPeriod && editSwapState?.playerId === pid;
+              return (
+                <button
+                  key={pid}
+                  onClick={() => isEditMode && onPlayerTap(periodIdx, pid)}
+                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                    isSelected ? 'bg-blue-100 text-blue-700 font-bold' : 'text-muted-foreground'
+                  }`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
