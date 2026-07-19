@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Wand2, AlertTriangle, Check, Clock, Users, ArrowRightLeft, Edit3, RotateCcw, CheckCircle } from 'lucide-react';
+import { Wand2, AlertTriangle, Check, Clock, Users, ArrowRightLeft, Edit3, RotateCcw, CheckCircle, X, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,28 +19,18 @@ import type {
 import type { Fixture } from '@/services/fixture.service';
 
 const POSITION_SHORT: Record<string, string> = {
-  GK: 'GK',
-  CB: 'CB',
-  LB: 'LB',
-  RB: 'RB',
-  CM: 'CM',
-  LM: 'LM',
-  RM: 'RM',
-  CF: 'CF',
+  GK: 'GK', CB: 'CB', LB: 'LB', RB: 'RB',
+  CM: 'CM', LM: 'LM', RM: 'RM', CF: 'CF',
+  LW: 'LW', RW: 'RW', LCB: 'LCB', RCB: 'RCB',
+  LWB: 'LWB', RWB: 'RWB', LCM: 'LCM', RCM: 'RCM',
 };
 
-const ALL_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CM', 'LM', 'RM', 'CF'];
+const ALL_POSITIONS = ['GK', 'CB', 'LB', 'RB', 'LWB', 'RWB', 'CM', 'LM', 'RM', 'CF', 'LW', 'RW'];
 
-/** Position sort order: GK first, then defence, midfield, attack */
 const POSITION_ORDER: Record<string, number> = {
-  GK: 0,
-  CB: 1,
-  LB: 1,
-  RB: 1,
-  CM: 2,
-  LM: 2,
-  RM: 2,
-  CF: 3,
+  GK: 0, CB: 1, LB: 1, RB: 1, LCB: 1, RCB: 1, LWB: 1, RWB: 1,
+  CM: 2, LM: 2, RM: 2, LCM: 2, RCM: 2,
+  CF: 3, LW: 3, RW: 3,
 };
 
 function sortByPosition(a: PeriodPlayer, b: PeriodPlayer): number {
@@ -48,8 +38,8 @@ function sortByPosition(a: PeriodPlayer, b: PeriodPlayer): number {
 }
 
 /**
- * Team Selection page.
- * Select a fixture, generate a balanced substitution plan, manually adjust, review and approve.
+ * Team Selection page — mobile-optimised with touch-friendly interactions.
+ * Features: large tap targets (min 44px), bottom action bar, sub-minute slider.
  */
 export function TeamSelectionPage() {
   const [searchParams] = useSearchParams();
@@ -61,6 +51,13 @@ export function TeamSelectionPage() {
   const [editSwapState, setEditSwapState] = useState<{ periodIdx: number; playerId: string } | null>(null);
   const [approved, setApproved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bottom action bar state
+  const [showPositionPicker, setShowPositionPicker] = useState(false);
+  const [showSubMinuteSlider, setShowSubMinuteSlider] = useState<{
+    periodIdx: number; playerOffId: string; playerOnId: string; currentMinute: number; min: number; max: number;
+  } | null>(null);
+  // Active quarter for mobile (show one at a time)
+  const [activeQuarter, setActiveQuarter] = useState(0);
 
   const { data: fixtures, isLoading: fixturesLoading } = useFixtures({ status: 'upcoming' });
   const generatePlan = useGenerateTeamSelection();
@@ -82,6 +79,7 @@ export function TeamSelectionPage() {
     setEditablePlan(null);
     setIsEditMode(false);
     setApproved(false);
+    setActiveQuarter(0);
 
     try {
       const response = await generatePlan.mutateAsync({ fixtureId: selectedFixtureId });
@@ -103,6 +101,7 @@ export function TeamSelectionPage() {
         generatedBy: wasManuallyEdited ? 'coach' : 'engine',
       });
       setApproved(true);
+      setIsEditMode(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve plan.');
     }
@@ -111,6 +110,8 @@ export function TeamSelectionPage() {
   const handleResetPlan = () => {
     setEditablePlan(null);
     setEditSwapState(null);
+    setShowPositionPicker(false);
+    setShowSubMinuteSlider(null);
   };
 
   /** Swap a player on pitch with a player on bench for a specific period */
@@ -119,34 +120,18 @@ export function TeamSelectionPage() {
     const basePlan = editablePlan ?? result.plan;
     const newPeriods = basePlan.periods.map((period, idx) => {
       if (idx !== periodIdx) return period;
-      const periodDuration = period.endMinute - period.startMinute;
-      // Move the on-pitch player to bench, bring bench player on
       const newOnPitch = period.onPitch.map((pp) => {
         if (pp.playerId === onPitchPlayerId) {
-          // Replace with bench player
           const benchPlayer = result.availablePlayers.find((p) => p.id === benchPlayerId);
-          return {
-            ...pp,
-            playerId: benchPlayerId,
-            position: benchPlayer?.primaryPosition ?? pp.position,
-          };
+          return { ...pp, playerId: benchPlayerId, position: benchPlayer?.primaryPosition ?? pp.position };
         }
         return pp;
       });
-      const newOffPitch = period.offPitch
-        .filter((id) => id !== benchPlayerId)
-        .concat(onPitchPlayerId);
+      const newOffPitch = period.offPitch.filter((id) => id !== benchPlayerId).concat(onPitchPlayerId);
       return { ...period, onPitch: newOnPitch, offPitch: newOffPitch };
     });
-
-    // Recalculate summary
     const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
-    const newPlan: SubstitutionPlan = {
-      ...basePlan,
-      periods: newPeriods,
-      summary: newSummary,
-    };
-    setEditablePlan(newPlan);
+    setEditablePlan({ ...basePlan, periods: newPeriods, summary: newSummary });
     setEditSwapState(null);
   }, [result, editablePlan]);
 
@@ -156,16 +141,11 @@ export function TeamSelectionPage() {
     const basePlan = editablePlan ?? result.plan;
     const newPeriods = basePlan.periods.map((period, idx) => {
       if (idx !== periodIdx) return period;
-      const newOnPitch = period.onPitch.map((pp) => {
-        if (pp.playerId === playerId) {
-          return { ...pp, position: newPosition };
-        }
-        return pp;
-      });
+      const newOnPitch = period.onPitch.map((pp) => pp.playerId === playerId ? { ...pp, position: newPosition } : pp);
       return { ...period, onPitch: newOnPitch };
     });
-    const newPlan: SubstitutionPlan = { ...basePlan, periods: newPeriods };
-    setEditablePlan(newPlan);
+    setEditablePlan({ ...basePlan, periods: newPeriods });
+    setShowPositionPicker(false);
   }, [result, editablePlan]);
 
   /** Swap a starter with a sub — starter becomes the sub, sub becomes the starter */
@@ -174,47 +154,29 @@ export function TeamSelectionPage() {
     const basePlan = editablePlan ?? result.plan;
     const period = basePlan.periods[periodIdx];
     const periodDuration = period.endMinute - period.startMinute;
-
-    const starterEntry = period.onPitch.find((pp) => pp.playerId === starterId);
     const subEntry = period.onPitch.find((pp) => pp.playerId === subId);
-    if (!starterEntry || !subEntry) return;
-
-    // Sub's current timing
+    if (!subEntry) return;
     const subMinute = subEntry.startMinute;
 
     const newPeriods = basePlan.periods.map((p, idx) => {
       if (idx !== periodIdx) return p;
       const newOnPitch = p.onPitch.map((pp) => {
-        if (pp.playerId === starterId) {
-          // Starter becomes the sub — comes on at the sub's minute
-          return { ...pp, startMinute: subMinute, endMinute: periodDuration };
-        }
-        if (pp.playerId === subId) {
-          // Sub becomes the starter — plays from start, leaves at sub minute
-          return { ...pp, startMinute: 0, endMinute: subMinute };
-        }
+        if (pp.playerId === starterId) return { ...pp, startMinute: subMinute, endMinute: periodDuration };
+        if (pp.playerId === subId) return { ...pp, startMinute: 0, endMinute: subMinute };
         return pp;
       });
       return { ...p, onPitch: newOnPitch };
     });
 
-    // Update substitutions array
     const newSubs = (basePlan.substitutions || []).map(sub => {
       if (sub.period === periodIdx + 1 && sub.playerOffId === starterId && sub.playerOnId === subId) {
-        // Reverse: now the sub (old subId) leaves and the starter (old starterId) comes on
         return { ...sub, playerOffId: subId, playerOnId: starterId };
       }
       return sub;
     });
 
     const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
-    const newPlan: SubstitutionPlan = {
-      ...basePlan,
-      periods: newPeriods,
-      substitutions: newSubs,
-      summary: newSummary,
-    };
-    setEditablePlan(newPlan);
+    setEditablePlan({ ...basePlan, periods: newPeriods, substitutions: newSubs, summary: newSummary });
     setEditSwapState(null);
   }, [result, editablePlan]);
 
@@ -224,27 +186,18 @@ export function TeamSelectionPage() {
     const basePlan = editablePlan ?? result.plan;
     const period = basePlan.periods[periodIdx];
     const periodDuration = period.endMinute - period.startMinute;
-
-    // Clamp minute to valid range (within the period, relative to period start)
     const relativeMinute = Math.max(1, Math.min(periodDuration - 1, newMinute - period.startMinute));
 
     const newPeriods = basePlan.periods.map((p, idx) => {
       if (idx !== periodIdx) return p;
       const newOnPitch = p.onPitch.map(pp => {
-        if (pp.playerId === playerOffId && pp.startMinute === 0) {
-          // Player going off — update their endMinute
-          return { ...pp, endMinute: relativeMinute };
-        }
-        if (pp.playerId === playerOnId && pp.startMinute > 0) {
-          // Player coming on — update their startMinute
-          return { ...pp, startMinute: relativeMinute };
-        }
+        if (pp.playerId === playerOffId && pp.startMinute === 0) return { ...pp, endMinute: relativeMinute };
+        if (pp.playerId === playerOnId && pp.startMinute > 0) return { ...pp, startMinute: relativeMinute };
         return pp;
       });
       return { ...p, onPitch: newOnPitch };
     });
 
-    // Also update the substitutions array
     const newSubs = (basePlan.substitutions || []).map(sub => {
       if (sub.period === periodIdx + 1 && sub.playerOffId === playerOffId && sub.playerOnId === playerOnId) {
         return { ...sub, minute: period.startMinute + relativeMinute, periodMinute: relativeMinute };
@@ -253,24 +206,74 @@ export function TeamSelectionPage() {
     });
 
     const newSummary = recalculateSummary(newPeriods, result.availablePlayers, result.config);
-    const newPlan: SubstitutionPlan = {
-      ...basePlan,
-      periods: newPeriods,
-      substitutions: newSubs,
-      summary: newSummary,
-    };
-    setEditablePlan(newPlan);
+    setEditablePlan({ ...basePlan, periods: newPeriods, substitutions: newSubs, summary: newSummary });
+    setShowSubMinuteSlider(null);
   }, [result, editablePlan]);
+
+  /** Handle player tap in edit mode — manages swap logic */
+  const handlePlayerTap = useCallback((periodIdx: number, playerId: string) => {
+    if (!isEditMode || !currentPlan) return;
+    const period = currentPlan.periods[periodIdx];
+    const isOnPitch = period.onPitch.some((pp) => pp.playerId === playerId);
+    const isOnBench = period.offPitch.includes(playerId);
+
+    if (!editSwapState) {
+      if (isOnPitch || isOnBench) setEditSwapState({ periodIdx, playerId });
+      return;
+    }
+
+    if (editSwapState.playerId === playerId && editSwapState.periodIdx === periodIdx) {
+      setEditSwapState(null);
+      return;
+    }
+
+    if (editSwapState.periodIdx !== periodIdx) {
+      setEditSwapState({ periodIdx, playerId });
+      return;
+    }
+
+    const firstIsOnPitch = period.onPitch.some((pp) => pp.playerId === editSwapState.playerId);
+    const firstIsOnBench = period.offPitch.includes(editSwapState.playerId);
+
+    if (firstIsOnPitch && isOnBench) {
+      handleSwapPlayers(periodIdx, editSwapState.playerId, playerId);
+    } else if (firstIsOnBench && isOnPitch) {
+      handleSwapPlayers(periodIdx, playerId, editSwapState.playerId);
+    } else if (firstIsOnPitch && isOnPitch) {
+      const firstEntry = period.onPitch.find((pp) => pp.playerId === editSwapState.playerId);
+      const secondEntry = period.onPitch.find((pp) => pp.playerId === playerId);
+      if (firstEntry && secondEntry) {
+        const firstIsStarter = firstEntry.startMinute === 0;
+        const secondIsStarter = secondEntry.startMinute === 0;
+        if (firstIsStarter && !secondIsStarter) handleSwapStarterWithSub(periodIdx, editSwapState.playerId, playerId);
+        else if (!firstIsStarter && secondIsStarter) handleSwapStarterWithSub(periodIdx, playerId, editSwapState.playerId);
+        else setEditSwapState({ periodIdx, playerId });
+      }
+    } else {
+      setEditSwapState({ periodIdx, playerId });
+    }
+  }, [isEditMode, currentPlan, editSwapState, handleSwapPlayers, handleSwapStarterWithSub]);
+
+  /** Get selected player info for the bottom bar */
+  const selectedPlayerInfo = useMemo(() => {
+    if (!editSwapState || !currentPlan) return null;
+    const period = currentPlan.periods[editSwapState.periodIdx];
+    const onPitchEntry = period.onPitch.find((pp) => pp.playerId === editSwapState.playerId);
+    const playerSummary = currentPlan.summary.find((s) => s.playerId === editSwapState.playerId);
+    const isOnBench = period.offPitch.includes(editSwapState.playerId);
+    return { onPitchEntry, playerSummary, isOnBench, period, periodIdx: editSwapState.periodIdx };
+  }, [editSwapState, currentPlan]);
 
   if (fixturesLoading) {
     return <div className="text-muted-foreground py-12 text-center">Loading fixtures...</div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Team Selection</h2>
-        <p className="text-muted-foreground">
+    <div className="pb-32">
+      {/* Header */}
+      <div className="px-1 pt-1 pb-3">
+        <h2 className="text-xl font-bold tracking-tight">Team Selection</h2>
+        <p className="text-sm text-muted-foreground">
           Generate a balanced substitution plan for your next match.
         </p>
       </div>
@@ -285,9 +288,8 @@ export function TeamSelectionPage() {
         </div>
       ) : (
         <>
-
-          {/* Fixture selector */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          {/* Fixture selector — horizontal scroll, large touch targets */}
+          <div className="flex gap-2 overflow-x-auto pb-3 -mx-1 px-1 snap-x snap-mandatory">
             {matchFixtures.map((fixture) => (
               <FixtureTab
                 key={fixture.id}
@@ -305,39 +307,26 @@ export function TeamSelectionPage() {
             ))}
           </div>
 
-          {/* Current fixture banner */}
-          {selectedFixtureId && (() => {
-            const selected = matchFixtures.find(f => f.id === selectedFixtureId);
-            if (!selected) return null;
-            return (
-              <div className="rounded-md bg-primary/5 border border-primary/20 p-3">
-                <p className="text-sm font-medium text-primary">
-                  Preparing for: {selected.homeAway === 'home' ? 'vs' : '@'} {selected.opponent} — {new Date(selected.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
-                </p>
-              </div>
-            );
-          })()}
-
-          {/* Generate button */}
+          {/* Generate button — full width for easy thumb tap */}
           <Button
             onClick={handleGenerate}
             disabled={!selectedFixtureId || generatePlan.isPending}
-            className="w-full sm:w-auto"
+            className="w-full h-12 text-base"
           >
-            <Wand2 className="h-4 w-4" />
+            <Wand2 className="h-5 w-5" />
             {generatePlan.isPending ? 'Generating...' : 'Generate Team Selection'}
           </Button>
 
           {/* Error */}
           {error && (
-            <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+            <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive mt-3">
               {error}
             </div>
           )}
 
           {/* Approved success */}
           {approved && (
-            <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800">
+            <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800 mt-3">
               <CheckCircle className="h-4 w-4" />
               <span className="font-medium">Plan approved — available on Match Day.</span>
             </div>
@@ -345,91 +334,159 @@ export function TeamSelectionPage() {
 
           {/* Results */}
           {result && currentPlan && (
-            <TeamSelectionResults
-              result={result}
-              plan={currentPlan}
-              isEditMode={isEditMode}
-              editSwapState={editSwapState}
-              wasManuallyEdited={wasManuallyEdited}
-              approved={approved}
-              approvePending={approvePlan.isPending}
-              onToggleEditMode={() => setIsEditMode(!isEditMode)}
-              onResetPlan={handleResetPlan}
-              onApprove={handleApprove}
-              onChangeSubMinute={handleChangeSubMinute}
-              onSelectPlayer={(periodIdx, playerId) => {
-                if (!isEditMode) return;
-                const period = currentPlan.periods[periodIdx];
-                const isOnPitch = period.onPitch.some((pp) => pp.playerId === playerId);
-                const isOnBench = period.offPitch.includes(playerId);
+            <div className="mt-4 space-y-4">
+              {/* Validity banner */}
+              {currentPlan.isValid ? (
+                <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800">
+                  <Check className="h-4 w-4 flex-shrink-0" />
+                  <span>Valid plan — equal time within ±{result.config.toleranceMinutes} min.</span>
+                </div>
+              ) : (
+                <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span className="font-medium">Needs adjustment</span>
+                  </div>
+                  {currentPlan.validationErrors.map((err, i) => (
+                    <p key={i} className="text-xs mt-1 pl-6">- {err}</p>
+                  ))}
+                </div>
+              )}
 
-                if (!editSwapState) {
-                  // First click - select player
-                  if (isOnPitch || isOnBench) {
-                    setEditSwapState({ periodIdx, playerId });
-                  }
-                } else if (editSwapState.playerId === playerId && editSwapState.periodIdx === periodIdx) {
-                  // Clicked same player again — deselect
-                  setEditSwapState(null);
-                } else {
-                  // Second click - complete the swap
-                  if (editSwapState.periodIdx !== periodIdx) {
-                    // Different period, start fresh selection
-                    setEditSwapState({ periodIdx, playerId });
-                    return;
-                  }
-                  const firstIsOnPitch = period.onPitch.some((pp) => pp.playerId === editSwapState.playerId);
-                  const secondIsOnPitch = isOnPitch;
-                  const firstIsOnBench = period.offPitch.includes(editSwapState.playerId);
-                  const secondIsOnBench = isOnBench;
+              {/* Quarter tabs — swipeable on mobile, show one quarter at a time */}
+              <div>
+                <div className="flex border-b mb-3">
+                  {currentPlan.periods.map((period, idx) => (
+                    <button
+                      key={period.period}
+                      onClick={() => setActiveQuarter(idx)}
+                      className={`flex-1 py-3 text-center text-sm font-medium transition-colors min-h-[44px] ${
+                        activeQuarter === idx
+                          ? 'border-b-2 border-primary text-primary'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      Q{period.period}
+                    </button>
+                  ))}
+                </div>
 
-                  if (firstIsOnPitch && secondIsOnBench) {
-                    handleSwapPlayers(periodIdx, editSwapState.playerId, playerId);
-                  } else if (firstIsOnBench && secondIsOnPitch) {
-                    handleSwapPlayers(periodIdx, playerId, editSwapState.playerId);
-                  } else if (firstIsOnPitch && secondIsOnPitch) {
-                    // Both on pitch — check if one is a starter and one is a sub
-                    const firstEntry = period.onPitch.find((pp) => pp.playerId === editSwapState.playerId);
-                    const secondEntry = period.onPitch.find((pp) => pp.playerId === playerId);
-                    if (firstEntry && secondEntry) {
-                      const firstIsStarter = firstEntry.startMinute === 0;
-                      const secondIsStarter = secondEntry.startMinute === 0;
-                      if (firstIsStarter && !secondIsStarter) {
-                        // Starter tapped first, sub tapped second — swap their roles
-                        handleSwapStarterWithSub(periodIdx, editSwapState.playerId, playerId);
-                      } else if (!firstIsStarter && secondIsStarter) {
-                        // Sub tapped first, starter tapped second — swap their roles
-                        handleSwapStarterWithSub(periodIdx, playerId, editSwapState.playerId);
-                      } else {
-                        // Both starters or both subs — just reselect
-                        setEditSwapState({ periodIdx, playerId });
-                      }
-                    } else {
-                      setEditSwapState({ periodIdx, playerId });
-                    }
-                  } else {
-                    // Both on bench — just reselect
-                    setEditSwapState({ periodIdx, playerId });
-                  }
-                }
-              }}
-              onChangePosition={handleChangePosition}
-            />
+                {/* Active quarter content */}
+                {currentPlan.periods[activeQuarter] && (
+                  <MobilePeriodCard
+                    period={currentPlan.periods[activeQuarter]}
+                    periodIdx={activeQuarter}
+                    plan={currentPlan}
+                    config={result.config}
+                    isEditMode={isEditMode}
+                    editSwapState={editSwapState}
+                    onPlayerTap={handlePlayerTap}
+                    onSubMinuteTap={(periodIdx, playerOffId, playerOnId, currentMin, min, max) => {
+                      setShowSubMinuteSlider({ periodIdx, playerOffId, playerOnId, currentMinute: currentMin, min, max });
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Rolling subs timeline */}
+              {currentPlan.substitutions && currentPlan.substitutions.length > 0 && (
+                <Card>
+                  <CardHeader className="p-4 pb-2">
+                    <div className="flex items-center gap-2">
+                      <ArrowRightLeft className="h-4 w-4" />
+                      <CardTitle className="text-sm">Substitutions</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div className="space-y-2">
+                      {[...currentPlan.substitutions].sort((a, b) => a.minute - b.minute).map((sub, i) => (
+                        <SubstitutionRow key={i} sub={sub} plan={currentPlan} />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Balance indicator */}
+              {(() => {
+                const outfieldPlayers = currentPlan.summary.filter(s => s.gkMinutes === 0);
+                if (outfieldPlayers.length === 0) return null;
+                const minTime = Math.min(...outfieldPlayers.map(s => s.totalMinutes));
+                const maxTime = Math.max(...outfieldPlayers.map(s => s.totalMinutes));
+                const difference = maxTime - minTime;
+                const isBalanced = difference <= result.config.toleranceMinutes;
+                return isBalanced ? (
+                  <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+                    <Check className="h-4 w-4 flex-shrink-0" />
+                    <span>Balanced — {difference} min difference</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>Imbalance — {difference} min gap (target: ±{result.config.toleranceMinutes})</span>
+                  </div>
+                );
+              })()}
+
+              {/* Compact playing time summary */}
+              <MobileTimeSummary plan={currentPlan} config={result.config} />
+            </div>
           )}
         </>
+      )}
+
+      {/* === BOTTOM ACTION BAR === */}
+      {result && currentPlan && (
+        <BottomActionBar
+          isEditMode={isEditMode}
+          wasManuallyEdited={wasManuallyEdited}
+          approved={approved}
+          approvePending={approvePlan.isPending}
+          selectedPlayerInfo={selectedPlayerInfo}
+          onToggleEditMode={() => { setIsEditMode(!isEditMode); setEditSwapState(null); setShowPositionPicker(false); }}
+          onResetPlan={handleResetPlan}
+          onApprove={handleApprove}
+          onDeselect={() => setEditSwapState(null)}
+          onShowPositionPicker={() => setShowPositionPicker(true)}
+        />
+      )}
+
+      {/* Position picker overlay */}
+      {showPositionPicker && editSwapState && currentPlan && (
+        <PositionPickerOverlay
+          currentPosition={
+            currentPlan.periods[editSwapState.periodIdx].onPitch.find(pp => pp.playerId === editSwapState.playerId)?.position ?? ''
+          }
+          onSelect={(pos) => handleChangePosition(editSwapState.periodIdx, editSwapState.playerId, pos)}
+          onClose={() => setShowPositionPicker(false)}
+        />
+      )}
+
+      {/* Sub minute slider overlay */}
+      {showSubMinuteSlider && (
+        <SubMinuteSliderOverlay
+          {...showSubMinuteSlider}
+          onConfirm={(newMinute) => {
+            handleChangeSubMinute(showSubMinuteSlider.periodIdx, showSubMinuteSlider.playerOffId, showSubMinuteSlider.playerOnId, newMinute);
+          }}
+          onClose={() => setShowSubMinuteSlider(null)}
+          plan={currentPlan!}
+        />
       )}
     </div>
   );
 }
 
+// ─── FIXTURE TAB ─────────────────────────────────────────────────────────────
+
 function FixtureTab({ fixture, selected, onSelect }: { fixture: Fixture; selected: boolean; onSelect: () => void }) {
   return (
     <button
       onClick={onSelect}
-      className={`flex-shrink-0 rounded-lg border px-4 py-2 text-sm transition-colors ${
+      className={`flex-shrink-0 snap-start rounded-lg border px-5 py-3 min-h-[52px] min-w-[120px] text-sm transition-colors active:scale-95 ${
         selected
           ? 'border-primary bg-primary/10 text-primary font-medium'
-          : 'border-border hover:bg-accent'
+          : 'border-border bg-card active:bg-accent'
       }`}
     >
       <div className="font-medium">vs {fixture.opponent}</div>
@@ -440,388 +497,111 @@ function FixtureTab({ fixture, selected, onSelect }: { fixture: Fixture; selecte
   );
 }
 
-interface TeamSelectionResultsProps {
-  result: TeamSelectionResult;
-  plan: SubstitutionPlan;
-  isEditMode: boolean;
-  editSwapState: { periodIdx: number; playerId: string } | null;
-  wasManuallyEdited: boolean;
-  approved: boolean;
-  approvePending: boolean;
-  onToggleEditMode: () => void;
-  onResetPlan: () => void;
-  onApprove: () => void;
-  onSelectPlayer: (periodIdx: number, playerId: string) => void;
-  onChangePosition: (periodIdx: number, playerId: string, newPosition: string) => void;
-  onChangeSubMinute: (periodIdx: number, playerOffId: string, playerOnId: string, newMinute: number) => void;
-}
+// ─── MOBILE PERIOD CARD ──────────────────────────────────────────────────────
 
-function TeamSelectionResults({
-  result,
-  plan,
-  isEditMode,
-  editSwapState,
-  wasManuallyEdited,
-  approved,
-  approvePending,
-  onToggleEditMode,
-  onResetPlan,
-  onApprove,
-  onSelectPlayer,
-  onChangePosition,
-  onChangeSubMinute,
-}: TeamSelectionResultsProps) {
-  const { config } = result;
-  const periodDuration = config.matchDurationMinutes / config.periods;
-
-  return (
-    <div className="space-y-6">
-      {/* Status */}
-      {plan.isValid ? (
-        <div className="flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm text-green-800">
-          <Check className="h-4 w-4" />
-          <span className="font-medium">Valid plan generated.</span>
-          <span>All players get equal outfield time within ±{config.toleranceMinutes} minutes.</span>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertTriangle className="h-4 w-4" />
-            <span className="font-medium">Plan has issues that may need manual adjustment:</span>
-          </div>
-          {plan.validationErrors.map((err, i) => (
-            <p key={i} className="text-sm text-amber-700 pl-7">- {err}</p>
-          ))}
-        </div>
-      )}
-
-      {/* Edit / Approve toolbar */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant={isEditMode ? 'default' : 'outline'} size="sm" onClick={onToggleEditMode}>
-          <Edit3 className="h-4 w-4" />
-          {isEditMode ? 'Done Editing' : 'Edit Plan'}
-        </Button>
-        {wasManuallyEdited && (
-          <Button variant="outline" size="sm" onClick={onResetPlan}>
-            <RotateCcw className="h-4 w-4" />
-            Reset to Generated
-          </Button>
-        )}
-        {!approved && (
-          <Button size="sm" onClick={onApprove} disabled={approvePending}>
-            <CheckCircle className="h-4 w-4" />
-            {approvePending ? 'Approving...' : 'Approve Plan'}
-          </Button>
-        )}
-      </div>
-
-      {isEditMode && (
-        <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
-          <span className="font-medium">Edit mode:</span> Tap a player on pitch (they highlight), then tap a bench player to swap them. Change sub minutes by editing the numbers. Tap "Done Editing" when finished.
-          {editSwapState && (
-            <span className="block mt-1 font-medium text-blue-600">
-              Player selected — now tap a bench player to complete the swap, or tap them again to deselect.
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* GK Assignment */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Goalkeeper</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {plan.gkAssignments.map((gk) => {
-            const playerSummary = plan.summary.find((s) => s.playerId === gk.playerId);
-            return (
-              <div key={gk.playerId} className="flex items-center gap-3">
-                <Badge variant="warning">GK</Badge>
-                <span className="font-medium">{playerSummary?.playerName}</span>
-                <span className="text-sm text-muted-foreground">
-                  Quarters {gk.periods.join(', ')} ({gk.periods.length * periodDuration} min)
-                </span>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Substitution Events */}
-      {plan.substitutions && plan.substitutions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <ArrowRightLeft className="h-4 w-4" />
-              <CardTitle className="text-base">Rolling Substitutions</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {[...plan.substitutions].sort((a, b) => a.minute - b.minute).map((sub, i) => (
-                <SubstitutionRow key={i} sub={sub} plan={plan} config={config} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Period-by-period plan with triangle indicators */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Substitution Plan</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            {plan.periods.map((period, periodIdx) => (
-              <PeriodCard
-                key={period.period}
-                period={period}
-                periodIdx={periodIdx}
-                plan={plan}
-                periodDuration={periodDuration}
-                isEditMode={isEditMode}
-                editSwapState={editSwapState}
-                onSelectPlayer={onSelectPlayer}
-                onChangePosition={onChangePosition}
-                onChangeSubMinute={onChangeSubMinute}
-              />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Balance Indicator */}
-      {(() => {
-        const outfieldPlayers = plan.summary.filter(s => s.gkMinutes === 0);
-        if (outfieldPlayers.length === 0) return null;
-        const minTime = Math.min(...outfieldPlayers.map(s => s.totalMinutes));
-        const maxTime = Math.max(...outfieldPlayers.map(s => s.totalMinutes));
-        const difference = maxTime - minTime;
-        const isBalanced = difference <= config.toleranceMinutes;
-
-        return isBalanced ? (
-          <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-800">
-            <Check className="h-4 w-4" />
-            <span className="font-medium">✓ Balanced</span>
-            <span>— all players within ±{config.toleranceMinutes} min ({difference} min difference)</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-            <AlertTriangle className="h-4 w-4" />
-            <span className="font-medium">⚠ Imbalance</span>
-            <span>— {difference} min difference (target: ±{config.toleranceMinutes} min)</span>
-          </div>
-        );
-      })()}
-
-      {/* Player time summary table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <CardTitle className="text-base">Playing Time Summary</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 font-medium">Player</th>
-                  {plan.periods.map((p) => (
-                    <th key={p.period} className="pb-2 font-medium text-right">Q{p.period}</th>
-                  ))}
-                  <th className="pb-2 font-medium text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.summary
-                  .sort((a, b) => a.playerName.localeCompare(b.playerName))
-                  .map((s) => {
-                    // Calculate minutes per quarter for this player
-                    const quarterMinutes = plan.periods.map((period) => {
-                      const entry = period.onPitch.find((pp) => pp.playerId === s.playerId);
-                      if (entry) {
-                        return Math.round((entry.endMinute - entry.startMinute) * 10) / 10;
-                      }
-                      return 0;
-                    });
-                    return (
-                      <tr key={s.playerId} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{s.playerName}</td>
-                        {quarterMinutes.map((mins, idx) => (
-                          <td key={idx} className={`py-2 text-right ${mins === 0 ? 'text-muted-foreground' : ''}`}>
-                            {mins > 0 ? `${mins}` : '-'}
-                          </td>
-                        ))}
-                        <td className="py-2 text-right font-bold">{s.totalMinutes}</td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-interface PeriodCardProps {
+interface MobilePeriodCardProps {
   period: PeriodPlan;
   periodIdx: number;
   plan: SubstitutionPlan;
-  periodDuration: number;
+  config: EngineConfig;
   isEditMode: boolean;
   editSwapState: { periodIdx: number; playerId: string } | null;
-  onSelectPlayer: (periodIdx: number, playerId: string) => void;
-  onChangePosition: (periodIdx: number, playerId: string, newPosition: string) => void;
-  onChangeSubMinute: (periodIdx: number, playerOffId: string, playerOnId: string, newMinute: number) => void;
+  onPlayerTap: (periodIdx: number, playerId: string) => void;
+  onSubMinuteTap: (periodIdx: number, playerOffId: string, playerOnId: string, currentMin: number, min: number, max: number) => void;
 }
 
-function PeriodCard({
-  period,
-  periodIdx,
-  plan,
-  periodDuration,
-  isEditMode,
-  editSwapState,
-  onSelectPlayer,
-  onChangePosition,
-  onChangeSubMinute,
-}: PeriodCardProps) {
+function MobilePeriodCard({ period, periodIdx, plan, config, isEditMode, editSwapState, onPlayerTap, onSubMinuteTap }: MobilePeriodCardProps) {
+  const periodDuration = period.endMinute - period.startMinute;
   const isSelectedPeriod = editSwapState?.periodIdx === periodIdx;
 
-  // ALL players who start the quarter (startMinute === 0), sorted by position
-  // This includes those who leave mid-quarter — they'll get a red ▼ indicator
-  const startersAll = period.onPitch
-    .filter((pp) => pp.startMinute === 0)
-    .sort(sortByPosition);
-
-  // Players coming on mid-quarter (the subs coming in)
-  const arrivingPlayers = period.onPitch
-    .filter((pp) => pp.startMinute > 0)
-    .sort((a, b) => a.startMinute - b.startMinute);
-
-  const hasSubs = arrivingPlayers.length > 0;
+  const startersAll = period.onPitch.filter((pp) => pp.startMinute === 0).sort(sortByPosition);
+  const arrivingPlayers = period.onPitch.filter((pp) => pp.startMinute > 0).sort((a, b) => a.startMinute - b.startMinute);
 
   return (
-    <div className={`rounded-md border p-3 ${isEditMode ? 'border-blue-300 bg-blue-50/30' : ''}`}>
-      <div className="flex items-center justify-between mb-2">
+    <div className={`rounded-lg border p-3 ${isEditMode ? 'border-blue-300 bg-blue-50/30' : 'bg-card'}`}>
+      <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold">Quarter {period.period}</h4>
-        <span className="text-xs text-muted-foreground">
-          {period.startMinute}-{period.endMinute} min
-        </span>
+        <span className="text-xs text-muted-foreground">{period.startMinute}–{period.endMinute} min</span>
       </div>
-      <div className="space-y-1">
 
-        {/* All starters with position — red ▼ + minute if they leave mid-quarter */}
+      {/* On Pitch — large tap targets */}
+      <div className="space-y-1">
         {startersAll.map((pp) => {
           const playerName = plan.summary.find((s) => s.playerId === pp.playerId)?.playerName ?? pp.playerId;
           const leavesEarly = pp.endMinute < periodDuration;
           const subMinute = leavesEarly ? period.startMinute + pp.endMinute : null;
           const isSelected = isSelectedPeriod && editSwapState?.playerId === pp.playerId;
-
-          // Find the player coming on for this player (to link the sub minute edit)
-          const matchingArrival = leavesEarly
-            ? arrivingPlayers.find((ap) => ap.startMinute === pp.endMinute)
-            : null;
+          const matchingArrival = leavesEarly ? arrivingPlayers.find((ap) => ap.startMinute === pp.endMinute) : null;
 
           return (
             <div
               key={pp.playerId}
-              className={`flex items-center gap-2 text-xs ${
-                isEditMode ? 'cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5' : ''
-              } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400 rounded px-1 py-0.5' : ''}`}
-              onClick={isEditMode ? () => onSelectPlayer(periodIdx, pp.playerId) : undefined}
+              onClick={() => isEditMode && onPlayerTap(periodIdx, pp.playerId)}
+              className={`flex items-center gap-3 min-h-[44px] px-3 py-2 rounded-md transition-colors ${
+                isEditMode ? 'cursor-pointer active:bg-blue-100' : ''
+              } ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400' : ''}`}
             >
-              {isEditMode ? (
-                <select
-                  value={pp.position}
-                  onChange={(e) => { e.stopPropagation(); onChangePosition(periodIdx, pp.playerId, e.target.value); }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] w-12 bg-transparent border rounded px-0.5"
-                >
-                  {ALL_POSITIONS.map((pos) => (
-                    <option key={pos} value={pos}>{POSITION_SHORT[pos] ?? pos}</option>
-                  ))}
-                </select>
-              ) : (
-                <Badge
-                  variant={pp.isGk ? 'warning' : 'secondary'}
-                  className="text-[10px] w-8 justify-center"
-                >
-                  {POSITION_SHORT[pp.position] ?? pp.position}
-                </Badge>
-              )}
-              <span className={leavesEarly ? 'text-red-700' : ''}>{playerName}</span>
+              <Badge variant={pp.isGk ? 'warning' : 'secondary'} className="text-xs w-10 justify-center font-bold">
+                {POSITION_SHORT[pp.position] ?? pp.position}
+              </Badge>
+              <span className={`flex-1 text-sm font-medium ${leavesEarly ? 'text-red-700' : ''}`}>{playerName}</span>
               {leavesEarly && (
-                <>
-                  <span className="text-red-600 font-bold text-sm leading-none">▼</span>
-                  {isEditMode && matchingArrival ? (
-                    <input
-                      type="number"
-                      value={subMinute ?? ''}
-                      min={period.startMinute + 1}
-                      max={period.endMinute - 1}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onChangeSubMinute(periodIdx, pp.playerId, matchingArrival.playerId, Number(e.target.value));
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-10 h-6 text-center text-[10px] text-red-600 border border-red-300 rounded bg-white"
-                    />
-                  ) : (
-                    <span className="text-red-600 text-[10px]">{subMinute}'</span>
-                  )}
-                </>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isEditMode && matchingArrival) {
+                      onSubMinuteTap(periodIdx, pp.playerId, matchingArrival.playerId, subMinute!, period.startMinute + 1, period.endMinute - 1);
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                    isEditMode ? 'bg-red-100 active:bg-red-200' : 'text-red-600'
+                  }`}
+                >
+                  <span className="text-red-600 font-bold">▼</span>
+                  <span className="text-red-600">{subMinute}'</span>
+                </button>
               )}
             </div>
           );
         })}
 
         {/* Subs coming on */}
-        {hasSubs && (
+        {arrivingPlayers.length > 0 && (
           <>
             <div className="border-t border-dashed border-muted-foreground/30 my-2" />
-            <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Subs</div>
+            <div className="text-xs text-muted-foreground mb-1 uppercase tracking-wide font-medium">Subs On</div>
             {arrivingPlayers.map((pp) => {
               const playerName = plan.summary.find((s) => s.playerId === pp.playerId)?.playerName ?? pp.playerId;
               const onMinute = period.startMinute + pp.startMinute;
-              const posLabel = POSITION_SHORT[pp.position] ?? pp.position;
               const isSelected = isSelectedPeriod && editSwapState?.playerId === pp.playerId;
-
-              // Find the player who left for this sub
               const matchingLeaver = startersAll.find((sp) => sp.endMinute === pp.startMinute && sp.endMinute < periodDuration);
 
               return (
                 <div
                   key={`sub-${pp.playerId}`}
-                  className={`flex items-center gap-2 text-xs ${
-                    isEditMode ? 'cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5' : ''
-                  } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400 rounded px-1 py-0.5' : ''}`}
-                  onClick={isEditMode ? () => onSelectPlayer(periodIdx, pp.playerId) : undefined}
+                  onClick={() => isEditMode && onPlayerTap(periodIdx, pp.playerId)}
+                  className={`flex items-center gap-3 min-h-[44px] px-3 py-2 rounded-md transition-colors ${
+                    isEditMode ? 'cursor-pointer active:bg-blue-100' : ''
+                  } ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400' : ''}`}
                 >
-                  <span className="text-green-600 font-bold text-sm leading-none">▲</span>
-                  <span className="text-green-700 font-medium">{playerName}</span>
-                  {isEditMode && matchingLeaver ? (
-                    <input
-                      type="number"
-                      value={onMinute}
-                      min={period.startMinute + 1}
-                      max={period.endMinute - 1}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onChangeSubMinute(periodIdx, matchingLeaver.playerId, pp.playerId, Number(e.target.value));
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-10 h-6 text-center text-[10px] text-green-600 border border-green-300 rounded bg-white"
-                    />
-                  ) : (
-                    <span className="text-green-600 text-[10px]">{onMinute}'</span>
-                  )}
-                  <Badge variant="secondary" className="text-[10px] w-8 justify-center">{posLabel}</Badge>
+                  <span className="text-green-600 font-bold text-base">▲</span>
+                  <Badge variant="secondary" className="text-xs w-10 justify-center font-bold">
+                    {POSITION_SHORT[pp.position] ?? pp.position}
+                  </Badge>
+                  <span className="flex-1 text-sm font-medium text-green-700">{playerName}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isEditMode && matchingLeaver) {
+                        onSubMinuteTap(periodIdx, matchingLeaver.playerId, pp.playerId, onMinute, period.startMinute + 1, period.endMinute - 1);
+                      }
+                    }}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                      isEditMode ? 'bg-green-100 active:bg-green-200' : 'text-green-600'
+                    }`}
+                  >
+                    <span className="text-green-600">{onMinute}'</span>
+                  </button>
                 </div>
               );
             })}
@@ -829,143 +609,282 @@ function PeriodCard({
         )}
       </div>
 
-      {/* Bench */}
+      {/* Bench — large tap targets for easy selection */}
       {period.offPitch.length > 0 && (
-        <div className="mt-2 pt-2 border-t">
-          <span className="text-xs text-muted-foreground">Bench: </span>
-          <span className="text-xs">
+        <div className="mt-3 pt-3 border-t">
+          <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Bench</span>
+          <div className="flex flex-wrap gap-2 mt-2">
             {period.offPitch.map((pid) => {
-              const name = plan.summary.find((s) => s.playerId === pid)?.playerName?.split(' ')[0] ?? pid;
+              const name = plan.summary.find((s) => s.playerId === pid)?.playerName ?? pid;
               const isSelected = isSelectedPeriod && editSwapState?.playerId === pid;
               return (
                 <button
                   key={pid}
-                  onClick={() => isEditMode && onSelectPlayer(periodIdx, pid)}
-                  className={`inline-block mr-2 ${isEditMode ? 'cursor-pointer hover:text-blue-600' : ''} ${
-                    isSelected ? 'text-blue-600 font-bold underline' : ''
+                  onClick={() => isEditMode && onPlayerTap(periodIdx, pid)}
+                  className={`min-h-[44px] px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                    isEditMode ? 'active:scale-95' : ''
+                  } ${
+                    isSelected
+                      ? 'bg-blue-100 border-blue-400 text-blue-700 ring-2 ring-blue-400'
+                      : 'bg-muted/50 border-border text-foreground'
                   }`}
                 >
                   {name}
                 </button>
               );
             })}
-          </span>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-interface PlayerSlotProps {
-  pp: PeriodPlayer;
-  plan: SubstitutionPlan;
-  periodIdx: number;
-  period: PeriodPlan;
-  indicator: 'none' | 'leaving' | 'arriving';
-  minuteLabel?: number;
+// ─── BOTTOM ACTION BAR ───────────────────────────────────────────────────────
+
+interface BottomActionBarProps {
   isEditMode: boolean;
-  isSelected: boolean;
-  onSelect: () => void;
-  onChangePosition: (periodIdx: number, playerId: string, newPosition: string) => void;
+  wasManuallyEdited: boolean;
+  approved: boolean;
+  approvePending: boolean;
+  selectedPlayerInfo: {
+    onPitchEntry: PeriodPlayer | undefined;
+    playerSummary: PlayerTimeSummary | undefined;
+    isOnBench: boolean;
+    period: PeriodPlan;
+    periodIdx: number;
+  } | null;
+  onToggleEditMode: () => void;
+  onResetPlan: () => void;
+  onApprove: () => void;
+  onDeselect: () => void;
+  onShowPositionPicker: () => void;
 }
 
-function PlayerSlot({ pp, plan, periodIdx, period, indicator, minuteLabel, isEditMode, isSelected, onSelect, onChangePosition }: PlayerSlotProps) {
-  const playerName = plan.summary.find((s) => s.playerId === pp.playerId)?.playerName ?? pp.playerId;
-
+function BottomActionBar({
+  isEditMode, wasManuallyEdited, approved, approvePending,
+  selectedPlayerInfo, onToggleEditMode, onResetPlan, onApprove, onDeselect, onShowPositionPicker,
+}: BottomActionBarProps) {
   return (
-    <div
-      className={`flex items-center gap-2 text-xs ${
-        isEditMode ? 'cursor-pointer hover:bg-blue-100 rounded px-1 py-0.5' : ''
-      } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400 rounded px-1 py-0.5' : ''}`}
-      onClick={isEditMode ? onSelect : undefined}
-    >
-      {/* Green ▲ before position for arriving players */}
-      {indicator === 'arriving' && (
-        <span className="text-green-600 font-bold text-sm leading-none">▲</span>
-      )}
-
-      {/* Position badge - clickable in edit mode */}
-      {isEditMode ? (
-        <select
-          value={pp.position}
-          onChange={(e) => {
-            e.stopPropagation();
-            onChangePosition(periodIdx, pp.playerId, e.target.value);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="text-[10px] w-12 bg-transparent border rounded px-0.5"
-        >
-          {ALL_POSITIONS.map((pos) => (
-            <option key={pos} value={pos}>{POSITION_SHORT[pos] ?? pos}</option>
-          ))}
-        </select>
-      ) : (
-        <Badge
-          variant={pp.isGk ? 'warning' : 'secondary'}
-          className="text-[10px] w-8 justify-center"
-        >
-          {POSITION_SHORT[pp.position] ?? pp.position}
-        </Badge>
-      )}
-
-      <span className={indicator === 'arriving' ? 'text-green-700 font-medium' : indicator === 'leaving' ? 'text-red-700' : ''}>
-        {playerName}
-      </span>
-
-      {/* Red ▼ after name for leaving players */}
-      {indicator === 'leaving' && (
-        <>
-          <span className="text-red-600 font-bold text-sm leading-none">▼</span>
-          <span className="text-red-600 text-[10px]">off {minuteLabel}'</span>
-        </>
-      )}
-
-      {/* Green "on X'" after name for arriving players */}
-      {indicator === 'arriving' && (
-        <span className="text-green-600 text-[10px]">on {minuteLabel}'</span>
-      )}
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t shadow-lg safe-area-bottom">
+      <div className="px-4 py-3">
+        {/* When a player is selected in edit mode, show contextual actions */}
+        {isEditMode && selectedPlayerInfo ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{selectedPlayerInfo.playerSummary?.playerName}</span>
+                {selectedPlayerInfo.onPitchEntry && (
+                  <Badge variant="secondary" className="text-xs">
+                    {POSITION_SHORT[selectedPlayerInfo.onPitchEntry.position] ?? selectedPlayerInfo.onPitchEntry.position}
+                  </Badge>
+                )}
+              </div>
+              <button onClick={onDeselect} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              {selectedPlayerInfo.onPitchEntry && !selectedPlayerInfo.isOnBench && (
+                <Button variant="outline" size="sm" className="flex-1 h-11" onClick={onShowPositionPicker}>
+                  <ChevronDown className="h-4 w-4" />
+                  Change Position
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground self-center flex-1">
+                {selectedPlayerInfo.isOnBench ? 'Tap a player on pitch to swap' : 'Tap a bench player to swap'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* Default action bar — edit/approve controls */
+          <div className="flex gap-2">
+            <Button
+              variant={isEditMode ? 'default' : 'outline'}
+              className="flex-1 h-12"
+              onClick={onToggleEditMode}
+            >
+              <Edit3 className="h-4 w-4" />
+              {isEditMode ? 'Done' : 'Edit Plan'}
+            </Button>
+            {wasManuallyEdited && (
+              <Button variant="outline" className="h-12" onClick={onResetPlan}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
+            {!approved && (
+              <Button className="flex-1 h-12" onClick={onApprove} disabled={approvePending}>
+                <CheckCircle className="h-4 w-4" />
+                {approvePending ? 'Saving...' : 'Approve'}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function SubstitutionRow({ sub, plan, config }: { sub: SubstitutionEvent; plan: SubstitutionPlan; config: EngineConfig }) {
+// ─── POSITION PICKER OVERLAY ─────────────────────────────────────────────────
+
+function PositionPickerOverlay({ currentPosition, onSelect, onClose }: {
+  currentPosition: string;
+  onSelect: (pos: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full bg-card rounded-t-2xl p-4 pb-8 animate-in slide-in-from-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-4" />
+        <h3 className="text-base font-semibold mb-4 text-center">Change Position</h3>
+        <div className="grid grid-cols-4 gap-3">
+          {ALL_POSITIONS.map((pos) => (
+            <button
+              key={pos}
+              onClick={() => onSelect(pos)}
+              className={`min-h-[52px] rounded-lg border text-sm font-bold transition-colors active:scale-95 ${
+                pos === currentPosition
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted/50 border-border active:bg-accent'
+              }`}
+            >
+              {pos}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SUB MINUTE SLIDER OVERLAY ───────────────────────────────────────────────
+
+function SubMinuteSliderOverlay({ periodIdx, playerOffId, playerOnId, currentMinute, min, max, onConfirm, onClose, plan }: {
+  periodIdx: number;
+  playerOffId: string;
+  playerOnId: string;
+  currentMinute: number;
+  min: number;
+  max: number;
+  onConfirm: (minute: number) => void;
+  onClose: () => void;
+  plan: SubstitutionPlan;
+}) {
+  const [value, setValue] = useState(currentMinute);
+  const playerOffName = plan.summary.find(s => s.playerId === playerOffId)?.playerName ?? 'Player';
+  const playerOnName = plan.summary.find(s => s.playerId === playerOnId)?.playerName ?? 'Sub';
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full bg-card rounded-t-2xl p-4 pb-8 animate-in slide-in-from-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-4" />
+        <h3 className="text-base font-semibold mb-2 text-center">Sub Timing</h3>
+        <p className="text-sm text-muted-foreground text-center mb-4">
+          <span className="text-red-600">▼ {playerOffName}</span>
+          {' → '}
+          <span className="text-green-600">▲ {playerOnName}</span>
+        </p>
+
+        {/* Large minute display */}
+        <div className="text-center mb-4">
+          <span className="text-4xl font-bold tabular-nums">{value}</span>
+          <span className="text-lg text-muted-foreground ml-1">min</span>
+        </div>
+
+        {/* Range slider — large touch target */}
+        <div className="px-2 mb-6">
+          <input
+            type="range"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => setValue(Number(e.target.value))}
+            className="w-full h-10 accent-primary cursor-pointer appearance-none bg-transparent
+              [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:bg-muted
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-8 [&::-webkit-slider-thumb]:w-8 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:mt-[-12px] [&::-webkit-slider-thumb]:shadow-md"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <span>{min}'</span>
+            <span>{max}'</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <Button variant="outline" className="flex-1 h-12" onClick={onClose}>Cancel</Button>
+          <Button className="flex-1 h-12" onClick={() => onConfirm(value)}>Confirm</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MOBILE TIME SUMMARY ─────────────────────────────────────────────────────
+
+function MobileTimeSummary({ plan, config }: { plan: SubstitutionPlan; config: EngineConfig }) {
+  const sorted = [...plan.summary].sort((a, b) => a.playerName.localeCompare(b.playerName));
+  const maxMinutes = config.matchDurationMinutes;
+
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          <CardTitle className="text-sm">Playing Time</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <div className="space-y-2">
+          {sorted.map((s) => (
+            <div key={s.playerId} className="flex items-center gap-3 min-h-[36px]">
+              <span className="text-xs font-medium w-24 truncate">{s.playerName}</span>
+              <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden relative">
+                <div
+                  className="h-full bg-primary/70 rounded-full transition-all"
+                  style={{ width: `${(s.totalMinutes / maxMinutes) * 100}%` }}
+                />
+                {s.gkMinutes > 0 && (
+                  <div
+                    className="absolute top-0 left-0 h-full bg-amber-400/70 rounded-full"
+                    style={{ width: `${(s.gkMinutes / maxMinutes) * 100}%` }}
+                  />
+                )}
+              </div>
+              <span className="text-xs font-bold tabular-nums w-10 text-right">{s.totalMinutes}m</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── SUBSTITUTION ROW ────────────────────────────────────────────────────────
+
+function SubstitutionRow({ sub, plan }: { sub: SubstitutionEvent; plan: SubstitutionPlan }) {
   const playerOff = plan.summary.find((s) => s.playerId === sub.playerOffId);
   const playerOn = plan.summary.find((s) => s.playerId === sub.playerOnId);
 
   return (
-    <div className="flex items-center gap-3 text-sm rounded-md bg-muted/50 px-3 py-2">
-      <span className="font-mono text-xs text-muted-foreground w-10">{sub.minute}'</span>
-      <span className="text-xs text-muted-foreground">Q{sub.period}</span>
-      <span className="text-red-600 text-xs">▼ {playerOff?.playerName}</span>
-      <span className="text-green-600 text-xs">▲ {playerOn?.playerName}</span>
+    <div className="flex items-center gap-3 min-h-[40px] rounded-md bg-muted/50 px-3 py-2">
+      <span className="font-mono text-xs text-muted-foreground w-8">{sub.minute}'</span>
+      <Badge variant="secondary" className="text-xs">Q{sub.period}</Badge>
+      <div className="flex-1 flex items-center gap-2 text-sm">
+        <span className="text-red-600">▼ {playerOff?.playerName?.split(' ')[0]}</span>
+        <span className="text-green-600">▲ {playerOn?.playerName?.split(' ')[0]}</span>
+      </div>
     </div>
   );
 }
 
-function PlayerTimeRow({ summary }: { summary: PlayerTimeSummary }) {
-  return (
-    <tr className="border-b last:border-0">
-      <td className="py-2 font-medium">{summary.playerName}</td>
-      <td className="py-2 text-right">{summary.outfieldMinutes} min</td>
-      <td className="py-2 text-right">
-        {summary.gkMinutes > 0 ? `${summary.gkMinutes} min` : '-'}
-      </td>
-      <td className="py-2 text-right font-medium">{summary.totalMinutes} min</td>
-      <td className="py-2 text-right text-muted-foreground">
-        {summary.periodsOnBench > 0 ? `${summary.periodsOnBench} Qs` : '-'}
-      </td>
-    </tr>
-  );
-}
+// ─── HELPER: RECALCULATE SUMMARY ─────────────────────────────────────────────
 
-/** Recalculate playing time summary from period data */
 function recalculateSummary(
   periods: PeriodPlan[],
   availablePlayers: PlayerForSelection[],
   config: EngineConfig
 ): PlayerTimeSummary[] {
-  const periodDuration = config.matchDurationMinutes / config.periods;
-
   return availablePlayers.map((player) => {
     let outfieldMinutes = 0;
     let gkMinutes = 0;
@@ -977,12 +896,8 @@ function recalculateSummary(
       const onPitchEntry = period.onPitch.find((pp) => pp.playerId === player.id);
       if (onPitchEntry) {
         const minutes = onPitchEntry.endMinute - onPitchEntry.startMinute;
-        if (onPitchEntry.isGk) {
-          gkMinutes += minutes;
-          periodsInGoal++;
-        } else {
-          outfieldMinutes += minutes;
-        }
+        if (onPitchEntry.isGk) { gkMinutes += minutes; periodsInGoal++; }
+        else { outfieldMinutes += minutes; }
         periodsPlayed++;
       } else if (period.offPitch.includes(player.id)) {
         periodsOnBench++;

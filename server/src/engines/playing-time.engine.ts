@@ -383,9 +383,13 @@ export function generateSubstitutionPlan(
     const partialLeavingPlayerIds = [...playerPartialPlay[periodIdx].entries()]
       .filter(([_, timing]) => timing.start === 0)
       .map(([pid]) => pid);
-    const allOutfieldThisPeriod = [...gkPlayersOnOutfield, ...fullPeriodPlayerIds, ...partialLeavingPlayerIds];
+    // For formation assignment, only include the players who form the starting XI
+    // (i.e. exactly `outfieldSlots` players). GK reward + full + partial-leaving who start.
+    // Incoming subs inherit the position of the player they replace (handled later).
+    const startingOutfieldThisPeriod = [...gkPlayersOnOutfield, ...fullPeriodPlayerIds, ...partialLeavingPlayerIds]
+      .slice(0, outfieldSlots); // cap to formation slot count
     const assignedPositions = formationSlots
-      ? assignFormationPositions(allOutfieldThisPeriod, availablePlayers, formationSlots)
+      ? assignFormationPositions(startingOutfieldThisPeriod, availablePlayers, formationSlots)
       : null;
 
     for (const pid of fullPeriodPlayerIds) {
@@ -582,9 +586,9 @@ function getFormationPositionSlots(formation: string): string[] {
       else for (let i = 0; i < count; i++) slots.push(`D${i + 1}`);
     } else if (isAttack) {
       if (count === 1) slots.push('CF');
-      else if (count === 2) slots.push('CF', 'CF');
-      else if (count === 3) slots.push('CF', 'CF', 'CF');
-      else for (let i = 0; i < count; i++) slots.push('CF');
+      else if (count === 2) slots.push('LW', 'RW');
+      else if (count === 3) slots.push('LW', 'CF', 'RW');
+      else for (let i = 0; i < count; i++) slots.push(`F${i + 1}`);
     } else {
       // Midfield
       if (count === 1) slots.push('CM');
@@ -619,7 +623,7 @@ const SLOT_CATEGORY: Record<string, string> = {};
 // Midfield slots
 ['CM', 'LM', 'RM', 'LCM', 'RCM'].forEach(s => SLOT_CATEGORY[s] = 'midfield');
 // Attack slots
-['CF'].forEach(s => SLOT_CATEGORY[s] = 'attack');
+['CF', 'LW', 'RW'].forEach(s => SLOT_CATEGORY[s] = 'attack');
 
 /**
  * Assign formation positions to players based on their primary, secondary, and tertiary positions.

@@ -5,7 +5,7 @@
   "description": "Touchline API Server",
   "type": "module",
   "scripts": {
-    "dev": "npx tsx watch src/app.ts",
+    "dev": "npx tsx watch --env-file=.env src/app.ts",
     "build": "npx tsc",
     "start": "node dist/app.js",
     "lint": "npx eslint src/",

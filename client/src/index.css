@@ -116,3 +116,18 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* Safe area for bottom action bar on notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Bottom sheet slide-in animation */
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-in.slide-in-from-bottom {
+  animation: slide-in-from-bottom 0.25s ease-out;
+}

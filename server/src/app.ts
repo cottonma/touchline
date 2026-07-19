@@ -1,17 +1,17 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
-import dotenv from 'dotenv';
 import { setupRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { db, sql } from './db/index.js';
 import { users, userTeams, clubs, seasons } from './db/schema.js';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
