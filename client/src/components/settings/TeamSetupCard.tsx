@@ -49,8 +49,10 @@ interface Season {
 
 export function TeamSetupCard() {
   const [season, setSeason] = useState<Season | null>(null);
+  const [allSeasons, setAllSeasons] = useState<(Season & { isActive: boolean; name?: string })[]>([]);
   const [clubId, setClubId] = useState('');
   const [clubName, setClubName] = useState('');
+  const [seasonName, setSeasonName] = useState('');
   const [format, setFormat] = useState('7v7');
   const [matchDuration, setMatchDuration] = useState(48);
   const [periods, setPeriods] = useState(4);
@@ -59,20 +61,15 @@ export function TeamSetupCard() {
   const [customFormation, setCustomFormation] = useState('');
   const [saved, setSaved] = useState(false);
   const [formationError, setFormationError] = useState('');
+  const [creatingNew, setCreatingNew] = useState(false);
 
   // Fetch active season on mount
   useEffect(() => {
-    api.get<{ data: (Season & { isActive: boolean })[] }>('/seasons').then(res => {
+    api.get<{ data: (Season & { isActive: boolean; name?: string })[] }>('/seasons').then(res => {
+      setAllSeasons(res.data);
       const active = res.data.find(s => s.isActive);
       if (active) {
-        setSeason(active);
-        setClubId(active.clubId || '');
-        setFormat(active.format);
-        setMatchDuration(active.matchDurationMinutes);
-        setPeriods(active.periods);
-        setMaxSquadSize(active.maxSquadSize);
-        setFormation(active.formation || '');
-        setCustomFormation(active.formation || '');
+        loadSeason(active);
         // Fetch club name
         if (active.clubId) {
           api.get<any[]>('/auth/clubs').then(clubs => {
@@ -83,6 +80,18 @@ export function TeamSetupCard() {
       }
     });
   }, []);
+
+  const loadSeason = (s: Season & { isActive?: boolean; name?: string }) => {
+    setSeason(s);
+    setClubId(s.clubId || '');
+    setFormat(s.format);
+    setMatchDuration(s.matchDurationMinutes);
+    setPeriods(s.periods);
+    setMaxSquadSize(s.maxSquadSize);
+    setFormation(s.formation || '');
+    setCustomFormation(s.formation || '');
+    setSeasonName((s as any).name || '');
+  };
 
   // Save club name
   const saveClubName = useCallback(async () => {
@@ -106,6 +115,35 @@ export function TeamSetupCard() {
       // Silently fail for now
     }
   }, [season]);
+
+  // Save season name
+  const saveSeasonName = useCallback(async () => {
+    if (!season || !seasonName.trim()) return;
+    await autoSave({ name: seasonName.trim() } as any);
+  }, [season, seasonName, autoSave]);
+
+  // Create a new season
+  const handleNewSeason = async () => {
+    setCreatingNew(true);
+    try {
+      const defaults = FORMAT_DEFAULTS[format];
+      const res = await api.post<{ data: Season & { name?: string } }>('/seasons', {
+        format,
+        matchDurationMinutes: defaults.matchDurationMinutes,
+        periods: defaults.periods,
+        maxSquadSize: defaults.maxSquadSize,
+        formation: null,
+      });
+      loadSeason(res.data);
+      // Refresh season list
+      const seasonsRes = await api.get<{ data: (Season & { isActive: boolean; name?: string })[] }>('/seasons');
+      setAllSeasons(seasonsRes.data);
+    } catch {
+      // ignore
+    } finally {
+      setCreatingNew(false);
+    }
+  };
 
   // Handle format change
   const handleFormatChange = (newFormat: string) => {
@@ -199,6 +237,30 @@ export function TeamSetupCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Season selector + New Season */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Current Season</Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewSeason}
+              disabled={creatingNew}
+            >
+              {creatingNew ? 'Creating...' : '+ New Season'}
+            </Button>
+          </div>
+          <Input
+            value={seasonName}
+            onChange={(e) => setSeasonName(e.target.value)}
+            onBlur={saveSeasonName}
+            placeholder="e.g. 2026/2027 Season"
+          />
+          <p className="text-xs text-muted-foreground">
+            Name this season. New fixtures will be linked to the active season.
+          </p>
+        </div>
+
         {/* Club/Team Name */}
         <div className="space-y-2">
           <Label>Team Name</Label>

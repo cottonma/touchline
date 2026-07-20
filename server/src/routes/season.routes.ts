@@ -4,11 +4,13 @@ import { db } from '../db/index.js';
 import { seasons } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { getClubId } from '../middleware/team-context.js';
+import { nanoid } from 'nanoid';
 
 /**
  * Season API Routes
  *
  * GET /api/seasons - Get seasons (filtered by active club)
+ * POST /api/seasons - Create a new season
  * PATCH /api/seasons/:id - Update season fields
  */
 
@@ -25,9 +27,43 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json({ data: allSeasons });
 }));
 
+router.post('/', asyncHandler(async (req, res) => {
+  const clubId = getClubId(req);
+  if (!clubId) {
+    res.status(400).json({ error: 'No active club' });
+    return;
+  }
+
+  const { format, matchDurationMinutes, periods, maxSquadSize, formation, name } = req.body;
+  const currentYear = new Date().getFullYear();
+
+  // Deactivate all existing seasons for this club
+  await db.update(seasons).set({ isActive: false, updatedAt: new Date().toISOString() }).where(eq(seasons.clubId, clubId));
+
+  const id = nanoid();
+  await db.insert(seasons).values({
+    id,
+    clubId,
+    name: name || `${currentYear}/${currentYear + 1} Season`,
+    startDate: `${currentYear}-08-01`,
+    endDate: `${currentYear + 1}-06-30`,
+    format: format || '7v7',
+    matchDurationMinutes: matchDurationMinutes || 48,
+    periods: periods || 4,
+    maxSquadSize: maxSquadSize || 12,
+    formation: formation || null,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } as any);
+
+  const [created] = await db.select().from(seasons).where(eq(seasons.id, id)).limit(1);
+  res.status(201).json({ data: created });
+}));
+
 router.patch('/:id', asyncHandler(async (req, res) => {
   const id = req.params.id as string;
-  const { format, matchDurationMinutes, periods, formation, maxSquadSize } = req.body;
+  const { format, matchDurationMinutes, periods, formation, maxSquadSize, name } = req.body;
 
   // Validate season exists
   const [existing] = await db.select().from(seasons).where(eq(seasons.id, id)).limit(1);
@@ -38,6 +74,10 @@ router.patch('/:id', asyncHandler(async (req, res) => {
 
   // Build update object with only provided fields
   const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+
+  if (name !== undefined) {
+    updates.name = String(name).trim();
+  }
 
   if (format !== undefined) {
     const validFormats = ['5v5', '7v7', '9v9', '11v11'];
