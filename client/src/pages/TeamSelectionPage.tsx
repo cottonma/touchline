@@ -713,8 +713,7 @@ function CompactPeriodCard({ period, periodIdx, plan, config, availablePlayers, 
                 isEditMode ? 'active:bg-blue-100' : ''
               } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
             >
-              <span className={`text-[10px] font-bold w-6 ${
-                pp.isGk ? 'text-amber-700' : {
+              <span className={`text-[10px] font-bold w-6 ${{
                   perfect: 'text-green-700',
                   close: 'text-amber-700',
                   poor: 'text-red-700',
@@ -819,7 +818,7 @@ function MobilePeriodCard({ period, periodIdx, plan, config, availablePlayers, i
               } ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400' : ''}`}
             >
               <Badge variant={pp.isGk ? 'warning' : 'secondary'} className={`text-xs w-10 justify-center font-bold border ${
-                pp.isGk ? '' : FIT_BADGE_CLASSES[getPositionFit(pp.position, availablePlayers.find(p => p.id === pp.playerId))]
+                FIT_BADGE_CLASSES[getPositionFit(pp.position, availablePlayers.find(p => p.id === pp.playerId))]
               }`}>
                 {POSITION_SHORT[pp.position] ?? pp.position}
               </Badge>
