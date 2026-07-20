@@ -128,7 +128,9 @@ export function DevelopmentPage() {
           {devData.goals.length === 0 ? (
             <div className="rounded-lg border border-dashed py-8 text-center">
               <Target className="h-10 w-10 mx-auto text-muted-foreground/50" />
-              <p className="mt-3 text-sm text-muted-foreground">No development goals yet. Add one from the library or create your own.</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {isParent ? 'No development goals set yet. Your coach will add these.' : 'No development goals yet. Add one from the library or create your own.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
