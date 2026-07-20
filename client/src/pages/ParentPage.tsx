@@ -49,6 +49,7 @@ export function ParentPage() {
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({});
   const [motmVotes, setMotmVotes] = useState<Record<string, string>>({});
+  const [matchResultsData, setMatchResultsData] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [savingAvailability, setSavingAvailability] = useState<string | null>(null);
   const [savingMotm, setSavingMotm] = useState(false);
@@ -98,6 +99,17 @@ export function ParentPage() {
           } catch {}
         }
         setMotmVotes(voteMap);
+
+        // Fetch match results for completed fixtures
+        const resultsMap: Record<string, any> = {};
+        const completed = (Array.isArray(fixturesData) ? fixturesData : []).filter((f: any) => f.status === 'completed');
+        for (const fixture of completed) {
+          try {
+            const data = await api.get<any>(`/fixtures/${fixture.id}/match-day`);
+            if (data) resultsMap[fixture.id] = data;
+          } catch {}
+        }
+        setMatchResultsData(resultsMap);
       }
     } catch (err) {
       console.error('Failed to load parent data', err);
@@ -329,6 +341,63 @@ export function ParentPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Section 3: Recent Results */}
+      {completedFixtures.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-primary" />
+              Recent Results
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {completedFixtures.map((fixture) => {
+                const result = matchResultsData[fixture.id];
+                const matchGoals = result?.goals ?? result?.data?.goals ?? [];
+                const goalsFor = result?.goalsFor ?? result?.data?.goalsFor ?? '?';
+                const goalsAgainst = result?.goalsAgainst ?? result?.data?.goalsAgainst ?? '?';
+
+                return (
+                  <div key={fixture.id} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">vs {fixture.opponent || 'Unknown'}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {new Date(fixture.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
+                      <div className="text-2xl font-bold tabular-nums">
+                        {goalsFor} – {goalsAgainst}
+                      </div>
+                    </div>
+
+                    {/* Goalscorers & Assists */}
+                    {Array.isArray(matchGoals) && matchGoals.length > 0 && (
+                      <div className="pt-2 border-t space-y-1">
+                        {matchGoals.map((g: any, idx: number) => {
+                          const scorer = allPlayers.find(p => p.id === g.scorerId || p.id === g.scorer_id);
+                          const assister = allPlayers.find(p => p.id === g.assistPlayerId || p.id === g.assist_player_id);
+                          return (
+                            <div key={idx} className="flex items-center gap-2 text-sm">
+                              <span>⚽</span>
+                              <span className="font-medium">{scorer ? `${scorer.firstName} ${scorer.lastName}` : 'Unknown'}</span>
+                              {assister && (
+                                <span className="text-muted-foreground text-xs">(assist: {assister.firstName})</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
