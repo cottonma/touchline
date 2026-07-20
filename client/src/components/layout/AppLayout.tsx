@@ -13,16 +13,19 @@ import { useAuth } from '@/lib/auth';
  */
 export function AppLayout() {
   const { user, isAdmin, logout } = useAuth();
+  const isParent = user?.role === 'parent';
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header — dark navy with green accent */}
       <header className="app-header sticky top-0 z-50 w-full">
         <div className="flex h-14 items-center px-4">
-          {/* Mobile menu trigger */}
-          <div className="md:hidden">
-            <MobileMenu />
-          </div>
+          {/* Mobile menu trigger — not for parents */}
+          {!isParent && (
+            <div className="md:hidden">
+              <MobileMenu />
+            </div>
+          )}
 
           {/* Logo */}
           <div className="flex items-center gap-2 md:w-64">
@@ -64,11 +67,11 @@ export function AppLayout() {
         </div>
       </header>
 
-      {/* Desktop sidebar */}
-      <Sidebar />
+      {/* Desktop sidebar — not for parents */}
+      {!isParent && <Sidebar />}
 
       {/* Main content area */}
-      <main className="pb-20 md:pb-0 md:pl-64">
+      <main className={`pb-20 md:pb-0 ${isParent ? '' : 'md:pl-64'}`}>
         <div className="container max-w-5xl px-4 py-6">
           <Outlet />
         </div>

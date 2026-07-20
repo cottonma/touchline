@@ -1,17 +1,60 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { MoreHorizontal, X } from 'lucide-react';
+import { MoreHorizontal, X, Calendar, Trophy, Target, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { primaryNavItems, navItems } from './navigation';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Mobile bottom navigation bar.
- * Shows 5 primary nav items + a "More" button that opens a grid of remaining items.
+ * Shows role-appropriate nav items.
+ * - Parent: simplified nav (Fixtures, MOTM, Development, Logout)
+ * - Coach/Admin: full 5 primary items + More button
  * Visible only on small screens (md breakpoint and below).
  */
 export function BottomNav() {
   const [showMore, setShowMore] = useState(false);
+  const { user, logout } = useAuth();
+  const isParent = user?.role === 'parent';
   const secondaryItems = navItems.filter(i => !i.primary && i.path !== '/parent');
+
+  // Parents get a simplified nav
+  if (isParent) {
+    return (
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden safe-area-bottom">
+        <div className="flex items-center justify-around">
+          <NavLink
+            to="/parent"
+            end
+            className={({ isActive }) => cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-xs transition-colors',
+              isActive ? 'text-primary' : 'text-muted-foreground'
+            )}
+          >
+            <Calendar className="h-5 w-5" />
+            <span className="font-medium">Fixtures</span>
+          </NavLink>
+          <NavLink
+            to="/development"
+            className={({ isActive }) => cn(
+              'flex flex-1 flex-col items-center gap-0.5 py-2 text-xs transition-colors',
+              isActive ? 'text-primary' : 'text-muted-foreground'
+            )}
+          >
+            <Target className="h-5 w-5" />
+            <span className="font-medium">Development</span>
+          </NavLink>
+          <button
+            onClick={logout}
+            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs text-muted-foreground"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <>
