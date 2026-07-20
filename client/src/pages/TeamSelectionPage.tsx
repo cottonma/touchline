@@ -92,8 +92,8 @@ function getPositionFit(
 
 /** CSS classes for position fit badge colouring */
 const FIT_BADGE_CLASSES = {
-  perfect: 'bg-green-100 text-green-800 border-green-300',
-  close: 'bg-amber-100 text-amber-800 border-amber-300',
+  perfect: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  close: 'bg-yellow-100 text-yellow-800 border-yellow-300',
   poor: 'bg-red-100 text-red-800 border-red-300',
 };
 
@@ -714,8 +714,8 @@ function CompactPeriodCard({ period, periodIdx, plan, config, availablePlayers, 
               } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
             >
               <span className={`text-[10px] font-bold w-6 ${{
-                  perfect: 'text-green-700',
-                  close: 'text-amber-700',
+                  perfect: 'text-emerald-700',
+                  close: 'text-yellow-700',
                   poor: 'text-red-700',
                 }[getPositionFit(pp.position, availablePlayers.find(p => p.id === pp.playerId))]
               }`}>{POSITION_SHORT[pp.position] ?? pp.position}</span>
