@@ -37,6 +37,53 @@ function sortByPosition(a: PeriodPlayer, b: PeriodPlayer): number {
   return (POSITION_ORDER[a.position] ?? 99) - (POSITION_ORDER[b.position] ?? 99);
 }
 
+/** Position category for "close match" detection */
+const POS_CATEGORY: Record<string, string> = {
+  GK: 'gk', CB: 'def', LB: 'def', RB: 'def',
+  CM: 'mid', LM: 'mid', RM: 'mid',
+  CF: 'att',
+};
+
+/**
+ * Determine how well a player fits their assigned position.
+ * Returns: 'perfect' | 'close' | 'poor'
+ * - perfect: assigned position matches primary, secondary, or tertiary
+ * - close: assigned position is in the same category (def/mid/att) as one of their positions
+ * - poor: no relationship at all
+ */
+function getPositionFit(
+  assignedPosition: string,
+  player: PlayerForSelection | undefined
+): 'perfect' | 'close' | 'poor' {
+  if (!player) return 'poor';
+  // GK is always a special case — if assigned GK and they're a volunteer, it's perfect
+  if (assignedPosition === 'GK') return 'perfect';
+
+  // Exact match on any preferred position
+  if (player.primaryPosition === assignedPosition) return 'perfect';
+  if (player.secondaryPosition === assignedPosition) return 'perfect';
+  if (player.tertiaryPosition === assignedPosition) return 'perfect';
+
+  // Category match — same zone (def/mid/att)
+  const assignedCat = POS_CATEGORY[assignedPosition];
+  const primaryCat = POS_CATEGORY[player.primaryPosition];
+  const secondaryCat = player.secondaryPosition ? POS_CATEGORY[player.secondaryPosition] : null;
+  const tertiaryCat = player.tertiaryPosition ? POS_CATEGORY[player.tertiaryPosition] : null;
+
+  if (assignedCat && (assignedCat === primaryCat || assignedCat === secondaryCat || assignedCat === tertiaryCat)) {
+    return 'close';
+  }
+
+  return 'poor';
+}
+
+/** CSS classes for position fit badge colouring */
+const FIT_BADGE_CLASSES = {
+  perfect: 'bg-green-100 text-green-800 border-green-300',
+  close: 'bg-amber-100 text-amber-800 border-amber-300',
+  poor: 'bg-red-100 text-red-800 border-red-300',
+};
+
 /**
  * Team Selection page — mobile-optimised with touch-friendly interactions.
  * Features: large tap targets (min 44px), bottom action bar, sub-minute slider.
@@ -463,6 +510,7 @@ export function TeamSelectionPage() {
                         periodIdx={idx}
                         plan={currentPlan}
                         config={result.config}
+                        availablePlayers={result.availablePlayers}
                         isEditMode={isEditMode}
                         editSwapState={editSwapState}
                         onPlayerTap={handlePlayerTap}
@@ -477,6 +525,7 @@ export function TeamSelectionPage() {
                       periodIdx={activeQuarter}
                       plan={currentPlan}
                       config={result.config}
+                      availablePlayers={result.availablePlayers}
                       isEditMode={isEditMode}
                       editSwapState={editSwapState}
                       onPlayerTap={handlePlayerTap}
@@ -616,12 +665,13 @@ interface CompactPeriodCardProps {
   periodIdx: number;
   plan: SubstitutionPlan;
   config: EngineConfig;
+  availablePlayers: PlayerForSelection[];
   isEditMode: boolean;
   editSwapState: { periodIdx: number; playerId: string } | null;
   onPlayerTap: (periodIdx: number, playerId: string) => void;
 }
 
-function CompactPeriodCard({ period, periodIdx, plan, config, isEditMode, editSwapState, onPlayerTap }: CompactPeriodCardProps) {
+function CompactPeriodCard({ period, periodIdx, plan, config, availablePlayers, isEditMode, editSwapState, onPlayerTap }: CompactPeriodCardProps) {
   const periodDuration = period.endMinute - period.startMinute;
   const isSelectedPeriod = editSwapState?.periodIdx === periodIdx;
   const startersAll = period.onPitch.filter((pp) => pp.startMinute === 0).sort(sortByPosition);
@@ -650,7 +700,13 @@ function CompactPeriodCard({ period, periodIdx, plan, config, isEditMode, editSw
                 isEditMode ? 'active:bg-blue-100' : ''
               } ${isSelected ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}
             >
-              <span className="text-[10px] font-bold text-muted-foreground w-6">{POSITION_SHORT[pp.position] ?? pp.position}</span>
+              <span className={`text-[10px] font-bold w-6 ${
+                pp.isGk ? 'text-amber-700' : {
+                  perfect: 'text-green-700',
+                  close: 'text-amber-700',
+                  poor: 'text-red-700',
+                }[getPositionFit(pp.position, availablePlayers.find(p => p.id === pp.playerId))]
+              }`}>{POSITION_SHORT[pp.position] ?? pp.position}</span>
               <span className={`text-xs truncate flex-1 ${leavesEarly ? 'text-red-700' : ''}`}>{firstName}</span>
               {leavesEarly && <span className="text-red-600 text-[10px]">▼</span>}
             </div>
@@ -711,13 +767,14 @@ interface MobilePeriodCardProps {
   periodIdx: number;
   plan: SubstitutionPlan;
   config: EngineConfig;
+  availablePlayers: PlayerForSelection[];
   isEditMode: boolean;
   editSwapState: { periodIdx: number; playerId: string } | null;
   onPlayerTap: (periodIdx: number, playerId: string) => void;
   onSubMinuteTap: (periodIdx: number, playerOffId: string, playerOnId: string, currentMin: number, min: number, max: number) => void;
 }
 
-function MobilePeriodCard({ period, periodIdx, plan, config, isEditMode, editSwapState, onPlayerTap, onSubMinuteTap }: MobilePeriodCardProps) {
+function MobilePeriodCard({ period, periodIdx, plan, config, availablePlayers, isEditMode, editSwapState, onPlayerTap, onSubMinuteTap }: MobilePeriodCardProps) {
   const periodDuration = period.endMinute - period.startMinute;
   const isSelectedPeriod = editSwapState?.periodIdx === periodIdx;
 
@@ -748,7 +805,9 @@ function MobilePeriodCard({ period, periodIdx, plan, config, isEditMode, editSwa
                 isEditMode ? 'cursor-pointer active:bg-blue-100' : ''
               } ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400' : ''}`}
             >
-              <Badge variant={pp.isGk ? 'warning' : 'secondary'} className="text-xs w-10 justify-center font-bold">
+              <Badge variant={pp.isGk ? 'warning' : 'secondary'} className={`text-xs w-10 justify-center font-bold border ${
+                pp.isGk ? '' : FIT_BADGE_CLASSES[getPositionFit(pp.position, availablePlayers.find(p => p.id === pp.playerId))]
+              }`}>
                 {POSITION_SHORT[pp.position] ?? pp.position}
               </Badge>
               <span className={`flex-1 text-sm font-medium ${leavesEarly ? 'text-red-700' : ''}`}>{playerName}</span>
@@ -792,7 +851,9 @@ function MobilePeriodCard({ period, periodIdx, plan, config, isEditMode, editSwa
                   } ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400' : ''}`}
                 >
                   <span className="text-green-600 font-bold text-base">▲</span>
-                  <Badge variant="secondary" className="text-xs w-10 justify-center font-bold">
+                  <Badge variant="secondary" className={`text-xs w-10 justify-center font-bold border ${
+                    FIT_BADGE_CLASSES[getPositionFit(pp.position, availablePlayers.find(p => p.id === pp.playerId))]
+                  }`}>
                     {POSITION_SHORT[pp.position] ?? pp.position}
                   </Badge>
                   <span className="flex-1 text-sm font-medium text-green-700">{playerName}</span>
