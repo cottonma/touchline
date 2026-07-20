@@ -82,11 +82,14 @@ export function ParentPage() {
         setAvailabilityMap(avMap);
       }
 
-      // Fetch MOTM votes for completed fixtures
+      // Fetch MOTM votes for today's and completed fixtures
       if (fixturesData.length > 0) {
         const voteMap: Record<string, string> = {};
-        const completedFixtures = fixturesData.filter((f) => f.status === 'completed');
-        for (const fixture of completedFixtures) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const votableFixtures = (Array.isArray(fixturesData) ? fixturesData : []).filter((f: any) =>
+          f.type !== 'training' && (f.status === 'completed' || (f.status === 'scheduled' && f.date <= todayStr))
+        );
+        for (const fixture of votableFixtures) {
           try {
             const data = await api.get<{ vote: MotmVote | null }>(`/parent/motm/${fixture.id}`);
             if (data.vote) {
@@ -142,8 +145,17 @@ export function ParentPage() {
     );
   }
 
-  const upcomingFixtures = fixtures.filter((f) => f.status === 'scheduled' && f.type === 'match');
-  const completedFixtures = fixtures.filter((f) => f.status === 'completed' && f.type === 'match');
+  const upcomingFixtures = fixtures.filter((f) => f.status === 'scheduled' && f.type !== 'training');
+  const completedFixtures = fixtures.filter((f) => f.status === 'completed' && f.type !== 'training');
+
+  // MOTM voting: allow on today's scheduled matches + completed matches
+  const today = new Date().toISOString().split('T')[0];
+  const motmEligibleFixtures = fixtures.filter((f) =>
+    f.type !== 'training' && (
+      f.status === 'completed' ||
+      (f.status === 'scheduled' && f.date <= today)
+    )
+  );
 
   // Players eligible for MOTM vote (all active players except own child)
   const eligiblePlayers = allPlayers.filter((p) => p.isActive && p.id !== child?.id);
@@ -257,13 +269,13 @@ export function ParentPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {completedFixtures.length === 0 ? (
-            <p className="text-slate-400 text-center py-4">No completed fixtures to vote on yet.</p>
+          {motmEligibleFixtures.length === 0 ? (
+            <p className="text-slate-400 text-center py-4">No matches available to vote on yet.</p>
           ) : !child ? (
             <p className="text-yellow-400 text-center py-4">Link your child to vote.</p>
           ) : (
             <div className="space-y-4">
-              {completedFixtures.map((fixture) => {
+              {motmEligibleFixtures.map((fixture) => {
                 const currentVote = motmVotes[fixture.id];
                 const votedPlayer = allPlayers.find((p) => p.id === currentVote);
                 return (
