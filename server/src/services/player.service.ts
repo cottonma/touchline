@@ -86,7 +86,7 @@ export class PlayerService {
     }
 
     // Validate shirt number uniqueness (if changing)
-    if (data.shirtNumber !== undefined && data.shirtNumber !== null) {
+    if (data.shirtNumber !== undefined && data.shirtNumber !== null && data.shirtNumber !== existing.shirtNumber) {
       const taken = await playerRepository.isShirtNumberTaken(data.shirtNumber, id, existing.clubId ?? undefined);
       if (taken) {
         return {
