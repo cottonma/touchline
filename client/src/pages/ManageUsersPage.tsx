@@ -86,9 +86,11 @@ export function ManageUsersPage() {
   const fetchPlayers = useCallback(async () => {
     try {
       const res = await api.get<{ data: Player[]; count: number }>('/players');
-      setSquadPlayers(res.data ?? []);
+      const playerList = Array.isArray(res) ? res : (res?.data ?? []);
+      setSquadPlayers(playerList);
     } catch (err) {
       console.error('Failed to fetch players', err);
+      setSquadPlayers([]);
     }
   }, []);
 
@@ -279,7 +281,7 @@ export function ManageUsersPage() {
                     onChange={(e) => setPlayerId(e.target.value)}
                   >
                     <option value="">— Select player —</option>
-                    {squadPlayers.map((p) => (
+                    {Array.isArray(squadPlayers) && squadPlayers.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.firstName} {p.lastName} {p.shirtNumber ? `(#${p.shirtNumber})` : ''} — {p.primaryPosition}
                       </option>
