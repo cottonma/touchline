@@ -72,11 +72,15 @@ export function PlayerForm({ player, onClose, onSuccess }: PlayerFormProps) {
 
     try {
       if (isEditing && player) {
-        // For updates, convert undefined to null so the server knows to clear fields
+        // For updates, explicitly send all fields with null for empty optionals.
+        // This ensures JSON.stringify includes them (undefined gets stripped).
         const updateData = {
-          ...formData,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          primaryPosition: formData.primaryPosition,
           secondaryPosition: formData.secondaryPosition || null,
           tertiaryPosition: formData.tertiaryPosition || null,
+          isGkVolunteer: formData.isGkVolunteer ?? false,
           shirtNumber: formData.shirtNumber ?? null,
           dateOfBirth: formData.dateOfBirth || null,
           preferredFoot: formData.preferredFoot || null,
