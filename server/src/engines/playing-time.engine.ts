@@ -640,26 +640,28 @@ function assignFormationPositions(
   const unfilledSlots = [...formationSlots];
 
   // Score how well a player fits a slot (higher = better fit)
+  // In grassroots, positions on the same line are essentially interchangeable:
+  // CB/LB/RB are all "defenders", CM/LM/RM are all "midfielders"
   function fitScore(playerId: string, slot: string): number {
     const player = allPlayers.find(p => p.id === playerId);
     if (!player) return 0;
     if (player.primaryPosition === slot) return 100;
-    if (player.secondaryPosition === slot) return 80;
-    if (player.tertiaryPosition === slot) return 60;
-    // Category match (e.g. CM player fits LM slot since both are midfield)
+    if (player.secondaryPosition === slot) return 90;
+    if (player.tertiaryPosition === slot) return 80;
+    // Same line as primary (e.g. CB player → LB/RB slot) — treat as strong fit
     const playerCat = POSITION_CATEGORY[player.primaryPosition] ?? 'midfield';
     const slotCat = SLOT_CATEGORY[slot] ?? 'midfield';
-    if (playerCat === slotCat) return 40;
-    // Secondary/tertiary category match
+    if (playerCat === slotCat) return 70;
+    // Same line as secondary/tertiary
     if (player.secondaryPosition) {
       const secCat = POSITION_CATEGORY[player.secondaryPosition] ?? 'midfield';
-      if (secCat === slotCat) return 30;
+      if (secCat === slotCat) return 60;
     }
     if (player.tertiaryPosition) {
       const terCat = POSITION_CATEGORY[player.tertiaryPosition] ?? 'midfield';
-      if (terCat === slotCat) return 20;
+      if (terCat === slotCat) return 50;
     }
-    return 10; // No match at all
+    return 10; // No match at all — different zone entirely
   }
 
   // Greedy assignment: for each slot, pick the best-fitting unassigned player

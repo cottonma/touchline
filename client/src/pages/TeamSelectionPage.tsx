@@ -47,8 +47,9 @@ const POS_CATEGORY: Record<string, string> = {
 /**
  * Determine how well a player fits their assigned position.
  * Returns: 'perfect' | 'close' | 'poor'
- * - perfect: assigned position matches primary, secondary, or tertiary
- * - close: assigned position is in the same category (def/mid/att) as one of their positions
+ * - perfect: assigned position matches primary/secondary/tertiary, OR same line in grassroots
+ *   (CB/LB/RB are all "defenders", CM/LM/RM are all "midfielders")
+ * - close: assigned position is in an adjacent zone to one of their positions
  * - poor: no relationship at all
  */
 function getPositionFit(
@@ -56,22 +57,32 @@ function getPositionFit(
   player: PlayerForSelection | undefined
 ): 'perfect' | 'close' | 'poor' {
   if (!player) return 'poor';
-  // GK is always a special case — if assigned GK and they're a volunteer, it's perfect
   if (assignedPosition === 'GK') return 'perfect';
 
   // Exact match on any preferred position
-  if (player.primaryPosition === assignedPosition) return 'perfect';
-  if (player.secondaryPosition === assignedPosition) return 'perfect';
-  if (player.tertiaryPosition === assignedPosition) return 'perfect';
+  const playerPositions = [
+    player.primaryPosition,
+    player.secondaryPosition,
+    player.tertiaryPosition,
+  ].filter(Boolean) as string[];
 
-  // Category match — same zone (def/mid/att)
+  if (playerPositions.includes(assignedPosition)) return 'perfect';
+
+  // Grassroots equivalence: positions on the same line are interchangeable
+  // CB/LB/RB are all defenders — perfect fit for any defensive slot
+  // CM/LM/RM are all midfielders — perfect fit for any midfield slot
   const assignedCat = POS_CATEGORY[assignedPosition];
-  const primaryCat = POS_CATEGORY[player.primaryPosition];
-  const secondaryCat = player.secondaryPosition ? POS_CATEGORY[player.secondaryPosition] : null;
-  const tertiaryCat = player.tertiaryPosition ? POS_CATEGORY[player.tertiaryPosition] : null;
+  for (const pos of playerPositions) {
+    if (POS_CATEGORY[pos] === assignedCat) return 'perfect';
+  }
 
-  if (assignedCat && (assignedCat === primaryCat || assignedCat === secondaryCat || assignedCat === tertiaryCat)) {
-    return 'close';
+  // Adjacent zone (e.g. defender assigned to midfield, or midfielder to attack)
+  // This is a "close" fit — not ideal but workable
+  const ZONE_ORDER: Record<string, number> = { def: 0, mid: 1, att: 2 };
+  const assignedZone = ZONE_ORDER[assignedCat] ?? -1;
+  for (const pos of playerPositions) {
+    const playerZone = ZONE_ORDER[POS_CATEGORY[pos]] ?? -1;
+    if (Math.abs(assignedZone - playerZone) === 1) return 'close';
   }
 
   return 'poor';
