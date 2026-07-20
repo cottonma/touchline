@@ -72,7 +72,20 @@ export function PlayerForm({ player, onClose, onSuccess }: PlayerFormProps) {
 
     try {
       if (isEditing && player) {
-        await updatePlayer.mutateAsync({ id: player.id, data: formData });
+        // For updates, convert undefined to null so the server knows to clear fields
+        const updateData = {
+          ...formData,
+          secondaryPosition: formData.secondaryPosition || null,
+          tertiaryPosition: formData.tertiaryPosition || null,
+          shirtNumber: formData.shirtNumber ?? null,
+          dateOfBirth: formData.dateOfBirth || null,
+          preferredFoot: formData.preferredFoot || null,
+          parentName: formData.parentName || null,
+          parentEmail: formData.parentEmail || null,
+          parentPhone: formData.parentPhone || null,
+          medicalNotes: formData.medicalNotes || null,
+        };
+        await updatePlayer.mutateAsync({ id: player.id, data: updateData });
       } else {
         // Clean up undefined/empty values before sending
         const cleanData = Object.fromEntries(
