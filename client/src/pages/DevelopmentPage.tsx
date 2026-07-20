@@ -13,7 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import type { DevelopmentGoal, DevelopmentObservation } from '@/services/development.service';
 
-const STATUS_LABELS: Record<string, string> = { working_on_it: 'Working on it', improving: 'Improving', achieved: 'Achieved' };
+const STATUS_LABELS: Record<string, string> = { working_on_it: 'Learning', improving: 'Growing', achieved: 'Got it!' };
 const STATUS_COLORS: Record<string, 'secondary' | 'warning' | 'success'> = { working_on_it: 'secondary', improving: 'warning', achieved: 'success' };
 const CATEGORY_LABELS: Record<string, string> = { technical: 'Technical', tactical: 'Tactical', physical: 'Physical', psychological: 'Psychological' };
 const POSITION_LABELS: Record<string, string> = { GK: 'GK', CB: 'CB', LB: 'LB', RB: 'RB', CM: 'CM', LM: 'LM', RM: 'RM', CF: 'CF', all: 'All' };
@@ -277,9 +277,9 @@ function GoalCard({
               onChange={(e) => onStatusChange(e.target.value)}
               className="w-32 h-8 text-xs"
             >
-              <option value="working_on_it">Working on it</option>
-              <option value="improving">Improving</option>
-              <option value="achieved">Achieved</option>
+              <option value="working_on_it">Learning</option>
+              <option value="improving">Growing</option>
+              <option value="achieved">Got it!</option>
             </Select>
           )}
         </div>

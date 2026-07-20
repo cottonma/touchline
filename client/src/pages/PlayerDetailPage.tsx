@@ -279,9 +279,9 @@ function DevelopmentGoalsCard({ playerId, devGoals }: { playerId: string; devGoa
   };
 
   const STATUS_LABELS: Record<string, string> = {
-    working_on_it: 'Working on it',
-    improving: 'Improving',
-    achieved: 'Achieved',
+    working_on_it: 'Learning',
+    improving: 'Growing',
+    achieved: 'Got it!',
   };
 
   return (
