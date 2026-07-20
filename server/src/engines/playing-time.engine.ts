@@ -99,7 +99,7 @@ export function generateSubstitutionPlan(
   const periodDuration = matchDurationMinutes / periods;
   const totalPlayers = availablePlayers.length;
 
-  // Generate formation position slots (e.g. ["LB", "RB", "LM", "CM", "RM", "ST"])
+  // Generate formation position slots (e.g. ["LB", "RB", "LM", "CM", "RM", "CF"])
   const formationSlots = formation ? getFormationPositionSlots(formation) : null;
 
   // Validation
