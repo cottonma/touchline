@@ -1065,40 +1065,16 @@ function MobileTimeSummary({ plan, config }: { plan: SubstitutionPlan; config: E
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0">
-        {/* Mobile: progress bars */}
-        <div className="md:hidden space-y-2">
-          {sorted.map((s) => (
-            <div key={s.playerId} className="flex items-center gap-3 min-h-[36px]">
-              <span className="text-xs font-medium w-24 truncate">{s.playerName}</span>
-              <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden relative">
-                <div
-                  className="h-full bg-primary/70 rounded-full transition-all"
-                  style={{ width: `${(s.totalMinutes / maxMinutes) * 100}%` }}
-                />
-                {s.gkMinutes > 0 && (
-                  <div
-                    className="absolute top-0 left-0 h-full bg-amber-400/70 rounded-full"
-                    style={{ width: `${(s.gkMinutes / maxMinutes) * 100}%` }}
-                  />
-                )}
-              </div>
-              <span className="text-xs font-bold tabular-nums w-10 text-right">{s.totalMinutes}m</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Desktop: full table with quarter breakdown */}
-        <div className="hidden md:block overflow-x-auto">
+        {/* Table with quarter breakdown — same on mobile and desktop */}
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
-                <th className="pb-2 font-medium">Player</th>
+                <th className="pb-2 font-medium text-xs">Player</th>
                 {plan.periods.map((p) => (
-                  <th key={p.period} className="pb-2 font-medium text-right">Q{p.period}</th>
+                  <th key={p.period} className="pb-2 font-medium text-right text-xs">Q{p.period}</th>
                 ))}
-                <th className="pb-2 font-medium text-right">Outfield</th>
-                <th className="pb-2 font-medium text-right">GK</th>
-                <th className="pb-2 font-medium text-right">Total</th>
+                <th className="pb-2 font-medium text-right text-xs">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -1110,15 +1086,13 @@ function MobileTimeSummary({ plan, config }: { plan: SubstitutionPlan; config: E
                 });
                 return (
                   <tr key={s.playerId} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{s.playerName}</td>
+                    <td className="py-1.5 font-medium text-xs">{s.playerName}</td>
                     {quarterMinutes.map((mins, idx) => (
-                      <td key={idx} className={`py-2 text-right ${mins === 0 ? 'text-muted-foreground' : ''}`}>
+                      <td key={idx} className={`py-1.5 text-right text-xs tabular-nums ${mins === 0 ? 'text-muted-foreground' : ''}`}>
                         {mins > 0 ? `${mins}` : '-'}
                       </td>
                     ))}
-                    <td className="py-2 text-right">{s.outfieldMinutes}</td>
-                    <td className="py-2 text-right">{s.gkMinutes > 0 ? s.gkMinutes : '-'}</td>
-                    <td className="py-2 text-right font-bold">{s.totalMinutes}</td>
+                    <td className="py-1.5 text-right text-xs font-bold tabular-nums">{s.totalMinutes}</td>
                   </tr>
                 );
               })}
