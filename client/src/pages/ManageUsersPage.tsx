@@ -85,8 +85,8 @@ export function ManageUsersPage() {
 
   const fetchPlayers = useCallback(async () => {
     try {
-      const data = await api.get<Player[]>('/players');
-      setSquadPlayers(data);
+      const res = await api.get<{ data: Player[]; count: number }>('/players');
+      setSquadPlayers(res.data ?? []);
     } catch (err) {
       console.error('Failed to fetch players', err);
     }
