@@ -120,6 +120,56 @@ export class DevelopmentService {
     if (!updated) {
       return { success: false, error: { code: 'GOAL_NOT_FOUND', message: 'Development goal not found.' } };
     }
+
+    // Check development badges when a goal is achieved
+    if (status === 'achieved') {
+      try {
+        const { badgeService, AUTO_BADGES } = await import('./badge.service.js');
+        const { db } = await import('../db/index.js');
+        const { developmentGoals, players } = await import('../db/schema.js');
+        const { eq } = await import('drizzle-orm');
+
+        // Get the player and their positions
+        const [player] = await db.select().from(players).where(eq(players.id, updated.playerId)).limit(1);
+        if (player) {
+          const playerPositions = [player.primaryPosition, player.secondaryPosition, player.tertiaryPosition, 'all'].filter(Boolean);
+
+          // Get all achieved goals for this player that match their positions
+          const allGoals = await db.select().from(developmentGoals).where(eq(developmentGoals.playerId, updated.playerId));
+          const achievedGoals = allGoals.filter(g => g.status === 'achieved' && playerPositions.includes(g.positionGroup));
+
+          // Dev Star — first achievement
+          if (achievedGoals.length === 1) {
+            const b = AUTO_BADGES.dev_star;
+            await badgeService.awardBadge({ playerId: updated.playerId, clubId: player.clubId ?? undefined, badgeType: 'dev_star', title: b.title, emoji: b.emoji, description: b.description });
+          }
+
+          // Scholar — 5 relevant achievements
+          if (achievedGoals.length === 5) {
+            await badgeService.awardBadge({ playerId: updated.playerId, clubId: player.clubId ?? undefined, badgeType: 'scholar', title: 'Scholar', emoji: '🎓', description: 'Achieved 5 development goals' });
+          }
+
+          // Position Master — all goals in a category for their primary position
+          const primaryPosGoals = allGoals.filter(g => g.positionGroup === player.primaryPosition);
+          const categories = [...new Set(primaryPosGoals.map(g => g.category))];
+          for (const cat of categories) {
+            const catGoals = primaryPosGoals.filter(g => g.category === cat);
+            const catAchieved = catGoals.filter(g => g.status === 'achieved');
+            if (catGoals.length > 0 && catAchieved.length === catGoals.length) {
+              const catLabel = cat.charAt(0).toUpperCase() + cat.slice(1);
+              await badgeService.awardBadge({
+                playerId: updated.playerId, clubId: player.clubId ?? undefined,
+                badgeType: `position_master_${cat}`, title: `${catLabel} Master`, emoji: '🏅',
+                description: `Completed all ${catLabel.toLowerCase()} goals for ${player.primaryPosition}`,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Development] Badge check failed:', err);
+      }
+    }
+
     return { success: true, data: updated };
   }
 
