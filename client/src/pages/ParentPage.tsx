@@ -164,17 +164,17 @@ export function ParentPage() {
     <div className="space-y-6">
       {/* Header — child info */}
       <div className="flex items-center gap-3">
-        <User className="w-6 h-6 text-blue-400" />
+        <User className="w-6 h-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Parent Portal</h1>
+          <h1 className="text-2xl font-bold">Parent Portal</h1>
           {child && (
-            <p className="text-slate-400 text-sm">
+            <p className="text-muted-foreground text-sm">
               {child.firstName} {child.lastName} — {child.primaryPosition}
               {child.shirtNumber ? ` (#${child.shirtNumber})` : ''}
             </p>
           )}
           {!child && (
-            <p className="text-yellow-400 text-sm">No child linked to your account. Ask your coach to link your player.</p>
+            <p className="text-amber-600 text-sm">No child linked to your account. Ask your coach to link your player.</p>
           )}
         </div>
       </div>
@@ -183,13 +183,13 @@ export function ParentPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-blue-400" />
+            <Calendar className="w-5 h-5 text-primary" />
             Upcoming Fixtures
           </CardTitle>
         </CardHeader>
         <CardContent>
           {upcomingFixtures.length === 0 ? (
-            <p className="text-slate-400 text-center py-4">No upcoming fixtures.</p>
+            <p className="text-muted-foreground text-center py-4">No upcoming fixtures.</p>
           ) : (
             <div className="space-y-3">
               {upcomingFixtures.map((fixture) => {
@@ -197,14 +197,14 @@ export function ParentPage() {
                 return (
                   <div
                     key={fixture.id}
-                    className="border border-slate-700 rounded-lg p-4 space-y-3"
+                    className="border rounded-lg p-4 space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-slate-100 font-medium">
+                        <p className="font-medium">
                           {fixture.opponent || 'TBC'}
                         </p>
-                        <p className="text-slate-400 text-sm">
+                        <p className="text-muted-foreground text-sm">
                           {new Date(fixture.date).toLocaleDateString('en-GB', {
                             weekday: 'short',
                             day: 'numeric',
@@ -212,7 +212,7 @@ export function ParentPage() {
                           })}
                           {fixture.kickOffTime && ` — ${fixture.kickOffTime}`}
                         </p>
-                        <p className="text-slate-500 text-xs">
+                        <p className="text-muted-foreground text-xs">
                           {fixture.location || 'TBC'} • {fixture.homeAway === 'home' ? 'Home' : fixture.homeAway === 'away' ? 'Away' : ''}
                         </p>
                       </div>
@@ -221,34 +221,36 @@ export function ParentPage() {
                       </Badge>
                     </div>
 
-                    {/* Availability toggle */}
+                    {/* Availability toggle — stacked for mobile */}
                     {child && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-sm mr-2">Availability:</span>
-                        <button
-                          onClick={() => handleAvailability(fixture.id, 'available')}
-                          disabled={savingAvailability === fixture.id}
-                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                            currentStatus === 'available'
-                              ? 'bg-green-600 text-white'
-                              : 'bg-slate-700 text-slate-300 hover:bg-green-700 hover:text-white'
-                          }`}
-                        >
-                          ✓ Available
-                        </button>
-                        <button
-                          onClick={() => handleAvailability(fixture.id, 'unavailable')}
-                          disabled={savingAvailability === fixture.id}
-                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                            currentStatus === 'unavailable'
-                              ? 'bg-red-600 text-white'
-                              : 'bg-slate-700 text-slate-300 hover:bg-red-700 hover:text-white'
-                          }`}
-                        >
-                          ✗ Unavailable
-                        </button>
+                      <div className="space-y-2">
+                        <span className="text-sm font-medium">Availability:</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAvailability(fixture.id, 'available')}
+                            disabled={savingAvailability === fixture.id}
+                            className={`flex-1 min-h-[44px] px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              currentStatus === 'available'
+                                ? 'bg-green-600 text-white'
+                                : 'bg-muted border border-border text-foreground hover:bg-green-50'
+                            }`}
+                          >
+                            ✓ Available
+                          </button>
+                          <button
+                            onClick={() => handleAvailability(fixture.id, 'unavailable')}
+                            disabled={savingAvailability === fixture.id}
+                            className={`flex-1 min-h-[44px] px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              currentStatus === 'unavailable'
+                                ? 'bg-red-600 text-white'
+                                : 'bg-muted border border-border text-foreground hover:bg-red-50'
+                            }`}
+                          >
+                            ✗ Unavailable
+                          </button>
+                        </div>
                         {currentStatus === 'unknown' && (
-                          <span className="text-slate-500 text-xs ml-2">Not set</span>
+                          <span className="text-muted-foreground text-xs">Not yet responded</span>
                         )}
                       </div>
                     )}
@@ -264,15 +266,15 @@ export function ParentPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-400" />
+            <Trophy className="w-5 h-5 text-yellow-500" />
             Man of the Match
           </CardTitle>
         </CardHeader>
         <CardContent>
           {motmEligibleFixtures.length === 0 ? (
-            <p className="text-slate-400 text-center py-4">No matches available to vote on yet.</p>
+            <p className="text-muted-foreground text-center py-4">No matches available to vote on yet.</p>
           ) : !child ? (
-            <p className="text-yellow-400 text-center py-4">Link your child to vote.</p>
+            <p className="text-amber-600 text-center py-4">Link your child to vote.</p>
           ) : (
             <div className="space-y-4">
               {motmEligibleFixtures.map((fixture) => {
@@ -281,14 +283,14 @@ export function ParentPage() {
                 return (
                   <div
                     key={fixture.id}
-                    className="border border-slate-700 rounded-lg p-4 space-y-3"
+                    className="border rounded-lg p-4 space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-slate-100 font-medium">
+                        <p className="font-medium">
                           vs {fixture.opponent || 'Unknown'}
                         </p>
-                        <p className="text-slate-400 text-sm">
+                        <p className="text-muted-foreground text-sm">
                           {new Date(fixture.date).toLocaleDateString('en-GB', {
                             weekday: 'short',
                             day: 'numeric',
@@ -298,26 +300,25 @@ export function ParentPage() {
                       </div>
                       {votedPlayer && (
                         <Badge variant="default" className="bg-yellow-600">
-                          ⭐ {votedPlayer.firstName} {votedPlayer.lastName}
+                          ⭐ {votedPlayer.firstName}
                         </Badge>
                       )}
                     </div>
 
                     {/* Player voting list */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {eligiblePlayers.map((player) => (
                         <button
                           key={player.id}
                           onClick={() => handleMotmVote(fixture.id, player.id)}
                           disabled={savingMotm}
-                          className={`px-3 py-2 rounded-md text-sm text-left transition-colors ${
+                          className={`min-h-[44px] px-3 py-2 rounded-lg text-sm text-left transition-colors ${
                             currentVote === player.id
-                              ? 'bg-yellow-600 text-white font-medium'
-                              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                              ? 'bg-yellow-500 text-white font-medium'
+                              : 'bg-muted border border-border text-foreground hover:bg-yellow-50'
                           }`}
                         >
                           {player.firstName} {player.lastName}
-                          {player.shirtNumber ? ` #${player.shirtNumber}` : ''}
                         </button>
                       ))}
                     </div>
