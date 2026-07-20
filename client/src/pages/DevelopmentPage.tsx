@@ -114,12 +114,14 @@ export function DevelopmentPage() {
           {/* Goals list */}
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Goals ({devData.goals.length})</h3>
-            <Button size="sm" variant="outline" onClick={() => setShowAddGoal(!showAddGoal)}>
-              <Plus className="h-4 w-4" /> Add Goal
-            </Button>
+            {!isParent && (
+              <Button size="sm" variant="outline" onClick={() => setShowAddGoal(!showAddGoal)}>
+                <Plus className="h-4 w-4" /> Add Goal
+              </Button>
+            )}
           </div>
 
-          {showAddGoal && (
+          {!isParent && showAddGoal && (
             <AddGoalFromLibrary library={library ?? []} onAdd={handleAddGoal} onCancel={() => setShowAddGoal(false)} />
           )}
 
@@ -137,13 +139,14 @@ export function DevelopmentPage() {
                   observations={devData.observations.filter((o) => o.goalId === goal.id)}
                   onStatusChange={(status) => updateStatus.mutate({ goalId: goal.id, status })}
                   onAddObservation={() => setObservationGoalId(goal.id)}
+                  readOnly={isParent}
                 />
               ))}
             </div>
           )}
 
-          {/* Add observation form */}
-          {observationGoalId && (
+          {/* Add observation form — coaches only */}
+          {!isParent && observationGoalId && (
             <Card className="border-primary/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Add Observation</CardTitle>
@@ -178,11 +181,13 @@ function GoalCard({
   observations,
   onStatusChange,
   onAddObservation,
+  readOnly = false,
 }: {
   goal: DevelopmentGoal;
   observations: DevelopmentObservation[];
   onStatusChange: (status: string) => void;
   onAddObservation: () => void;
+  readOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -196,6 +201,7 @@ function GoalCard({
               <Badge variant={STATUS_COLORS[goal.status]} className="text-xs">
                 {STATUS_LABELS[goal.status]}
               </Badge>
+              {goal.status === 'achieved' && <span className="text-base">🏆</span>}
             </div>
             <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
               <span>{CATEGORY_LABELS[goal.category]}</span>
@@ -204,23 +210,31 @@ function GoalCard({
             </div>
           </div>
 
-          {/* Status selector */}
-          <Select
-            value={goal.status}
-            onChange={(e) => onStatusChange(e.target.value)}
-            className="w-32 h-8 text-xs"
-          >
-            <option value="working_on_it">Working on it</option>
-            <option value="improving">Improving</option>
-            <option value="achieved">Achieved</option>
-          </Select>
+          {/* Status selector — coaches only */}
+          {!readOnly && (
+            <Select
+              value={goal.status}
+              onChange={(e) => onStatusChange(e.target.value)}
+              className="w-32 h-8 text-xs"
+            >
+              <option value="working_on_it">Working on it</option>
+              <option value="improving">Improving</option>
+              <option value="achieved">Achieved</option>
+            </Select>
+          )}
         </div>
 
-        {/* Observation controls */}
-        <div className="flex items-center gap-2 mt-3">
-          <Button variant="ghost" size="sm" onClick={onAddObservation} className="text-xs h-7">
-            <MessageCircle className="h-3 w-3" /> Add Observation
-          </Button>
+        {/* Observation controls — coaches only */}
+        {!readOnly && (
+          <div className="flex items-center gap-2 mt-3">
+            <Button variant="ghost" size="sm" onClick={onAddObservation} className="text-xs h-7">
+              <MessageCircle className="h-3 w-3" /> Add Observation
+            </Button>
+          </div>
+        )}
+
+        {/* Observations toggle — visible to all */}
+        <div className="flex items-center gap-2 mt-2">
           {observations.length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} className="text-xs h-7">
               {observations.length} observation{observations.length !== 1 ? 's' : ''}
