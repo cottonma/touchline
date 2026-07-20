@@ -21,6 +21,11 @@ export class PlayerController {
   async getAll(req: Request, res: Response): Promise<void> {
     const includeInactive = req.query.includeInactive === 'true';
     const clubId = getClubId(req);
+    // If no club context, return empty rather than leaking all clubs' players
+    if (!clubId) {
+      res.json({ data: [], count: 0 });
+      return;
+    }
     const players = await playerService.getAllPlayers(includeInactive, clubId);
     res.json({ data: players, count: players.length });
   }
