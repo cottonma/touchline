@@ -57,7 +57,9 @@ function getPositionFit(
   player: PlayerForSelection | undefined
 ): 'perfect' | 'close' | 'poor' {
   if (!player) return 'poor';
-  if (assignedPosition === 'GK') return 'perfect';
+  if (assignedPosition === 'GK') {
+    return player.isGkVolunteer ? 'perfect' : 'poor';
+  }
 
   // Exact match on any preferred position
   const playerPositions = [
