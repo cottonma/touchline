@@ -48,6 +48,8 @@ export function MatchDayPage() {
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | undefined>();
   const [goalsFor, setGoalsFor] = useState(0);
   const [goalsAgainst, setGoalsAgainst] = useState(0);
+  const [goalsForTouched, setGoalsForTouched] = useState(false);
+  const [goalsAgainstTouched, setGoalsAgainstTouched] = useState(false);
   const [coachNotes, setCoachNotes] = useState('');
   const [motmPlayerId, setMotmPlayerId] = useState<string>('');
   const [goalEntries, setGoalEntries] = useState<GoalEntry[]>([]);
@@ -317,18 +319,48 @@ export function MatchDayPage() {
           {/* Score */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Score</CardTitle>
+              <CardTitle className="text-base">Final Score</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="space-y-1 text-center">
-                  <Label className="text-xs">Us</Label>
-                  <Input type="number" min={0} max={50} value={goalsFor} onChange={(e) => setGoalsFor(Number(e.target.value))} className="w-20 text-center text-lg font-bold" />
+              <div className="flex items-center gap-4 justify-center">
+                <div className="space-y-1 text-center flex-1">
+                  <Label className="text-xs font-medium truncate block">
+                    {selectedFixture?.homeAway === 'home' ? 'Home' : 'Away'}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={goalsFor === 0 && !goalsForTouched ? '' : goalsFor}
+                    onFocus={() => setGoalsForTouched(true)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGoalsForTouched(true);
+                      setGoalsFor(val === '' ? 0 : Math.min(50, Math.max(0, parseInt(val) || 0)));
+                    }}
+                    placeholder="0"
+                    className="w-20 mx-auto text-center text-2xl font-bold h-14"
+                  />
                 </div>
-                <span className="text-2xl font-bold text-muted-foreground">-</span>
-                <div className="space-y-1 text-center">
-                  <Label className="text-xs">Them</Label>
-                  <Input type="number" min={0} max={50} value={goalsAgainst} onChange={(e) => setGoalsAgainst(Number(e.target.value))} className="w-20 text-center text-lg font-bold" />
+                <span className="text-2xl font-bold text-muted-foreground">–</span>
+                <div className="space-y-1 text-center flex-1">
+                  <Label className="text-xs font-medium truncate block">
+                    {selectedFixture?.opponent ?? 'Opponent'}
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={goalsAgainst === 0 && !goalsAgainstTouched ? '' : goalsAgainst}
+                    onFocus={() => setGoalsAgainstTouched(true)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGoalsAgainstTouched(true);
+                      setGoalsAgainst(val === '' ? 0 : Math.min(50, Math.max(0, parseInt(val) || 0)));
+                    }}
+                    placeholder="0"
+                    className="w-20 mx-auto text-center text-2xl font-bold h-14"
+                  />
                 </div>
               </div>
             </CardContent>
