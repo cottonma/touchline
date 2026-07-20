@@ -118,8 +118,11 @@ export class DashboardService {
     if (nextFix) {
       const allAvailability = await db.select().from(availability);
       const fixtureAvail = allAvailability.filter((a) => a.fixtureId === nextFix.id);
-      const availCount = fixtureAvail.filter((a) => a.status === 'available').length;
-      const unavailCount = fixtureAvail.filter((a) => a.status === 'unavailable').length;
+      // Only count availability for players in this club's squad
+      const clubPlayerIds = new Set(allPlayers.map(p => p.id));
+      const clubFixtureAvail = fixtureAvail.filter((a) => clubPlayerIds.has(a.playerId));
+      const availCount = clubFixtureAvail.filter((a) => a.status === 'available').length;
+      const unavailCount = clubFixtureAvail.filter((a) => a.status === 'unavailable').length;
       const unknownCount = allPlayers.length - availCount - unavailCount;
 
       availabilitySummary = {
