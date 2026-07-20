@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { usePlayers } from '@/hooks/use-players';
 import { usePlayerDevelopment, useGoalLibrary, useCreateGoal, useUpdateGoalStatus, useAddObservation, useSeedLibrary } from '@/hooks/use-development';
+import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import type { DevelopmentGoal, DevelopmentObservation } from '@/services/development.service';
 
 const STATUS_LABELS: Record<string, string> = { working_on_it: 'Working on it', improving: 'Improving', achieved: 'Achieved' };
@@ -24,8 +26,28 @@ export function DevelopmentPage() {
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [observationGoalId, setObservationGoalId] = useState<string | null>(null);
   const [observationText, setObservationText] = useState('');
+  const [childId, setChildId] = useState<string | null>(null);
 
-  const { data: players } = usePlayers();
+  const { user } = useAuth();
+  const isParent = user?.role === 'parent';
+  const { data: allPlayers } = usePlayers();
+
+  // For parents, fetch their linked child and only show that player
+  useEffect(() => {
+    if (isParent) {
+      api.get<any>('/parent/my-child').then((child) => {
+        if (child?.id) {
+          setChildId(child.id);
+          setSelectedPlayerId(child.id);
+        }
+      }).catch(() => {});
+    }
+  }, [isParent]);
+
+  const players = isParent
+    ? (allPlayers?.filter(p => p.id === childId) ?? [])
+    : (allPlayers ?? []);
+
   const { data: devData } = usePlayerDevelopment(selectedPlayerId);
   const { data: library } = useGoalLibrary();
   const createGoal = useCreateGoal();
@@ -33,12 +55,12 @@ export function DevelopmentPage() {
   const addObservation = useAddObservation();
   const seedLibrary = useSeedLibrary();
 
-  // Auto-select first player
+  // Auto-select first player (for coaches)
   useEffect(() => {
-    if (!selectedPlayerId && players && players.length > 0) {
+    if (!isParent && !selectedPlayerId && players && players.length > 0) {
       setSelectedPlayerId(players[0].id);
     }
-  }, [players, selectedPlayerId]);
+  }, [players, selectedPlayerId, isParent]);
 
   // Auto-seed library if empty
   useEffect(() => {
