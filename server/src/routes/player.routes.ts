@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { playerController } from '../controllers/player.controller.js';
 import { asyncHandler } from '../middleware/async-handler.js';
 import { db } from '../db/index.js';
-import { trainingAttendance, trainingSessions, playingTime } from '../db/schema.js';
+import { trainingAttendance, trainingSessions, playingTime, fixtures } from '../db/schema.js';
+import { getActiveSeasonId } from '../middleware/team-context.js';
 
 /**
  * Player API Routes
@@ -24,6 +25,14 @@ router.get('/', asyncHandler((req, res) => playerController.getAll(req, res)));
 // Player stats endpoint - must be before /:id to avoid conflict
 router.get('/:id/stats', asyncHandler(async (req, res) => {
   const id = req.params.id as string;
+  const seasonId = await getActiveSeasonId(req);
+
+  // Get fixture IDs for the active season (so we only count this season's stats)
+  let seasonFixtureIds: string[] = [];
+  if (seasonId) {
+    const seasonFixtures = await db.select({ id: fixtures.id }).from(fixtures).where(eq(fixtures.seasonId, seasonId));
+    seasonFixtureIds = seasonFixtures.map(f => f.id);
+  }
 
   // Count training sessions attended by this player
   const [attendedResult] = await db
@@ -36,28 +45,43 @@ router.get('/:id/stats', asyncHandler(async (req, res) => {
     .select({ count: sql<number>`count(*)` })
     .from(trainingSessions);
 
-  // Count matches played (total_minutes > 0)
-  const [matchesPlayedResult] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(playingTime)
-    .where(and(eq(playingTime.playerId, id), sql`${playingTime.totalMinutes} > 0`));
+  // Count matches played (total_minutes > 0) — only for this season's fixtures
+  let matchesPlayed = 0;
+  let totalOutfieldMinutes = 0;
+  let totalGkMinutes = 0;
 
-  // Sum outfield and goalkeeper minutes
-  const [minutesResult] = await db
-    .select({
-      totalOutfieldMinutes: sql<number>`coalesce(sum(${playingTime.outfieldMinutes}), 0)`,
-      totalGkMinutes: sql<number>`coalesce(sum(${playingTime.goalkeeperMinutes}), 0)`,
-    })
-    .from(playingTime)
-    .where(eq(playingTime.playerId, id));
+  if (seasonFixtureIds.length > 0) {
+    const [matchesPlayedResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(playingTime)
+      .where(and(
+        eq(playingTime.playerId, id),
+        inArray(playingTime.fixtureId, seasonFixtureIds),
+        sql`${playingTime.totalMinutes} > 0`
+      ));
+    matchesPlayed = matchesPlayedResult?.count ?? 0;
+
+    const [minutesResult] = await db
+      .select({
+        totalOutfieldMinutes: sql<number>`coalesce(sum(${playingTime.outfieldMinutes}), 0)`,
+        totalGkMinutes: sql<number>`coalesce(sum(${playingTime.goalkeeperMinutes}), 0)`,
+      })
+      .from(playingTime)
+      .where(and(
+        eq(playingTime.playerId, id),
+        inArray(playingTime.fixtureId, seasonFixtureIds)
+      ));
+    totalOutfieldMinutes = minutesResult?.totalOutfieldMinutes ?? 0;
+    totalGkMinutes = minutesResult?.totalGkMinutes ?? 0;
+  }
 
   res.json({
     data: {
       trainingSessionsAttended: attendedResult?.count ?? 0,
       totalTrainingSessions: totalSessionsResult?.count ?? 0,
-      matchesPlayed: matchesPlayedResult?.count ?? 0,
-      totalOutfieldMinutes: minutesResult?.totalOutfieldMinutes ?? 0,
-      totalGkMinutes: minutesResult?.totalGkMinutes ?? 0,
+      matchesPlayed,
+      totalOutfieldMinutes,
+      totalGkMinutes,
     },
   });
 }));
