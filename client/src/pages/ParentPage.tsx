@@ -58,12 +58,13 @@ export function ParentPage() {
       const [childData, fixturesData, playersData] = await Promise.all([
         api.get<Player>('/parent/my-child').catch(() => null),
         api.get<Fixture[]>('/parent/fixtures').catch(() => []),
-        api.get<Player[]>('/players').catch(() => []),
+        api.get<any>('/players').catch(() => ({ data: [] })),
       ]);
 
       setChild(childData);
-      setFixtures(fixturesData);
-      setAllPlayers(playersData);
+      setFixtures(Array.isArray(fixturesData) ? fixturesData : []);
+      const playerList = Array.isArray(playersData) ? playersData : (playersData?.data ?? []);
+      setAllPlayers(playerList);
 
       // Fetch availability for each fixture from the availability endpoint
       // We'll check the availability status from the fixtures data
