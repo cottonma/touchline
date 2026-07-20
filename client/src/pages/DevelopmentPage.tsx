@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Target, MessageCircle, ChevronRight } from 'lucide-react';
+import { Plus, Target, MessageCircle, ChevronRight, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { usePlayers } from '@/hooks/use-players';
 import { usePlayerDevelopment, useGoalLibrary, useCreateGoal, useUpdateGoalStatus, useAddObservation, useSeedLibrary } from '@/hooks/use-development';
+import { usePlayerBadges, useBadgeTemplates, useAwardBadge } from '@/hooks/use-badges';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import type { DevelopmentGoal, DevelopmentObservation } from '@/services/development.service';
@@ -50,10 +51,13 @@ export function DevelopmentPage() {
 
   const { data: devData } = usePlayerDevelopment(selectedPlayerId);
   const { data: library } = useGoalLibrary();
+  const { data: playerBadges } = usePlayerBadges(selectedPlayerId);
+  const { data: badgeTemplates } = useBadgeTemplates();
   const createGoal = useCreateGoal();
   const updateStatus = useUpdateGoalStatus();
   const addObservation = useAddObservation();
   const seedLibrary = useSeedLibrary();
+  const awardBadge = useAwardBadge();
 
   // Auto-select first player (for coaches)
   useEffect(() => {
@@ -173,6 +177,60 @@ export function DevelopmentPage() {
             </Card>
           )}
         </>
+      )}
+
+      {/* Trophy Cabinet */}
+      {selectedPlayerId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Trophy Cabinet
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {playerBadges && playerBadges.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {playerBadges.map((badge) => (
+                  <div key={badge.id} className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50 border">
+                    <span className="text-3xl mb-1">{badge.emoji}</span>
+                    <span className="text-xs font-medium">{badge.title}</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">
+                      {new Date(badge.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {isParent ? 'No badges earned yet — keep going!' : 'No badges yet. They\'ll be awarded automatically for milestones.'}
+              </p>
+            )}
+
+            {/* Coach: award a badge */}
+            {!isParent && badgeTemplates && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Award a badge:</p>
+                <div className="flex flex-wrap gap-2">
+                  {badgeTemplates.map((tmpl) => (
+                    <button
+                      key={tmpl.type}
+                      onClick={() => {
+                        if (!selectedPlayerId) return;
+                        awardBadge.mutate({ playerId: selectedPlayerId, badgeType: tmpl.type, title: tmpl.title, emoji: tmpl.emoji, description: tmpl.description });
+                      }}
+                      disabled={awardBadge.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent active:scale-95 transition-all"
+                    >
+                      <span>{tmpl.emoji}</span>
+                      <span>{tmpl.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

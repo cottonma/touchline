@@ -368,3 +368,20 @@ export const scoutReports = pgTable('scout_reports', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+// ============================================================
+// BADGES - Player achievement badges
+// ============================================================
+
+export const badges = pgTable('badges', {
+  id: text('id').primaryKey(),
+  playerId: text('player_id').notNull().references(() => players.id),
+  clubId: text('club_id').references(() => clubs.id),
+  badgeType: text('badge_type').notNull(),
+  title: text('title').notNull(),
+  emoji: text('emoji').notNull().default('⭐'),
+  description: text('description'),
+  awardedBy: text('awarded_by'),
+  fixtureId: text('fixture_id').references(() => fixtures.id),
+  createdAt: text('created_at').notNull(),
+});

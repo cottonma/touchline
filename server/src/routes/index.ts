@@ -18,6 +18,7 @@ import { oppositionNotesRoutes } from './opposition-notes.routes.js';
 import { scoutReportRoutes } from './scout-report.routes.js';
 import { clubRoutes } from './club.routes.js';
 import { parentRoutes } from './parent.routes.js';
+import { badgeRoutes } from './badge.routes.js';
 
 /**
  * Register all API routes.
@@ -48,6 +49,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/opposition-notes', oppositionNotesRoutes);
   app.use('/api/scout-reports', scoutReportRoutes);
   app.use('/api/parent', parentRoutes);
+  app.use('/api/badges', badgeRoutes);
 
   // 404 handler for unmatched API routes
   app.use('/api/*', (_req, res) => {
