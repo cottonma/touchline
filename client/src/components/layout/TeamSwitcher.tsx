@@ -31,8 +31,12 @@ export function TeamSwitcher() {
 
   const handleChange = (newClubId: string) => {
     setActiveClubId(newClubId);
-    // Clear all cached data so it refetches with the new club context
-    queryClient.invalidateQueries();
+    // Remove all cached data and refetch with new club context
+    // Small delay ensures localStorage is updated before refetch
+    setTimeout(() => {
+      queryClient.removeQueries();
+      queryClient.invalidateQueries();
+    }, 100);
   };
 
   return (

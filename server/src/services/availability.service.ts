@@ -27,7 +27,7 @@ export class AvailabilityService {
    * Get availability for a fixture, merged with the full player list.
    * Players without an availability record show as 'unknown'.
    */
-  async getFixtureAvailability(fixtureId: string): Promise<ServiceResult<AvailabilityWithPlayer[]>> {
+  async getFixtureAvailability(fixtureId: string, clubId?: string): Promise<ServiceResult<AvailabilityWithPlayer[]>> {
     // Validate fixture exists
     const fixture = await fixtureRepository.findById(fixtureId);
     if (!fixture) {
@@ -37,8 +37,8 @@ export class AvailabilityService {
       };
     }
 
-    // Get all active players
-    const players = await playerRepository.findAll(false);
+    // Get active players — filtered by club if provided
+    const players = await playerRepository.findAll(false, clubId);
 
     // Get existing availability records for this fixture
     const records = await availabilityRepository.findByFixture(fixtureId);

@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { Request as ExpressRequest } from 'express';
 import { availabilityService } from '../services/availability.service.js';
 import { updateAvailabilitySchema, batchUpdateAvailabilitySchema } from '../validation/availability.validation.js';
+import { getClubId } from '../middleware/team-context.js';
 
 type Request = ExpressRequest<{ fixtureId?: string }>;
 
@@ -16,7 +17,8 @@ export class AvailabilityController {
    */
   async getByFixture(req: Request, res: Response): Promise<void> {
     const fixtureId = req.params.fixtureId!;
-    const result = await availabilityService.getFixtureAvailability(fixtureId);
+    const clubId = getClubId(req);
+    const result = await availabilityService.getFixtureAvailability(fixtureId, clubId);
 
     if (!result.success) {
       res.status(404).json({ error: result.error.code, message: result.error.message });
