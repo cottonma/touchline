@@ -19,6 +19,7 @@ import { scoutReportRoutes } from './scout-report.routes.js';
 import { clubRoutes } from './club.routes.js';
 import { parentRoutes } from './parent.routes.js';
 import { badgeRoutes } from './badge.routes.js';
+import { matchPlanRoutes } from './match-plan.routes.js';
 
 /**
  * Register all API routes.
@@ -50,6 +51,7 @@ export function setupRoutes(app: Express): void {
   app.use('/api/scout-reports', scoutReportRoutes);
   app.use('/api/parent', parentRoutes);
   app.use('/api/badges', badgeRoutes);
+  app.use('/api/match-plans', matchPlanRoutes);
 
   // 404 handler for unmatched API routes
   app.use('/api/*', (_req, res) => {

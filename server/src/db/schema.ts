@@ -385,3 +385,35 @@ export const badges = pgTable('badges', {
   fixtureId: text('fixture_id').references(() => fixtures.id),
   createdAt: text('created_at').notNull(),
 });
+
+// ============================================================
+// MATCH PLANS - Visual match planning workspace
+// ============================================================
+
+export const matchPlans = pgTable('match_plans', {
+  id: text('id').primaryKey(),
+  fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
+  clubId: text('club_id').references(() => clubs.id),
+  status: text('status').notNull().default('draft'),
+  formation: text('formation'),
+  periods: integer('periods').notNull(),
+  periodDurationMinutes: text('period_duration_minutes').notNull(),
+  matchDurationMinutes: integer('match_duration_minutes').notNull(),
+  outfieldSlots: integer('outfield_slots').notNull(),
+  generatedBy: text('generated_by'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const matchPlanSlots = pgTable('match_plan_slots', {
+  id: text('id').primaryKey(),
+  matchPlanId: text('match_plan_id').notNull().references(() => matchPlans.id),
+  period: integer('period').notNull(),
+  playerId: text('player_id').notNull().references(() => players.id),
+  position: text('position').notNull(),
+  isGk: boolean('is_gk').notNull().default(false),
+  startMinute: integer('start_minute').notNull().default(0),
+  endMinute: integer('end_minute').notNull(),
+  createdAt: text('created_at').notNull(),
+});
