@@ -365,3 +365,51 @@ Distinguished at every level:
 ### Decision: View Switching
 
 Simple toggle: `Pitch | Playing Time` at the top of the workspace area. Both views keep the same period tabs, action buttons, and fixture context. No navigation change, no data reload.
+
+
+---
+
+## Addendum: Playing-Time Fairness & Saved Plan Versions (August 2026)
+
+### Decision: GK Minutes Excluded from Fairness Calculations
+
+All fairness/balance calculations now use **outfield minutes only**:
+- Intelligence Panel: highest/lowest/average = outfield minutes
+- Player Pool: +/- difference = outfield vs target
+- Playing Time Table: +/- column = outfield vs target
+- Warnings: "X min difference" = outfield only
+
+GK minutes continue to be tracked and displayed (GK column, total column) but do not contribute to balance assessment. A player who plays 45 min outfield + 15 min GK is compared equally to a player who plays 45 min outfield + 0 GK.
+
+### Decision: Saved Plan Versions
+
+**Model:** `match_plan_versions` table stores immutable snapshots.
+- Each version: `id`, `name`, `slots_snapshot` (full JSON), `formation`, `is_final`, `generated_by`, `created_at`
+- Linked to the parent `match_plan` via `match_plan_id`
+- A fixture can have one working plan + many saved versions
+
+**Current Save Draft behaviour (BEFORE this change):** Save Draft called `PUT /slots` which overwrites the working plan in-place. No snapshot preserved.
+
+**New behaviour:**
+- "Save Draft" now also creates a version snapshot (immutable copy)
+- "Generate Team" replaces the working plan but previous saved versions remain intact
+- Coach can list/restore/delete versions
+- One version can be marked "Final" for Match Day
+
+**API:**
+- `GET /match-plans/:fixtureId/versions` — list saved versions
+- `POST /match-plans/:fixtureId/versions` — save current as named version
+- `POST /match-plans/:fixtureId/versions/:id/restore` — restore version to working plan
+- `PUT /match-plans/:fixtureId/versions/:id/final` — mark as final
+- `DELETE /match-plans/:fixtureId/versions/:id` — delete version
+
+**Mental model:**
+```
+Working Plan (live, editable)
+    ↓ Save Version
+Saved Plans (immutable snapshots)
+    ↓ Restore
+Working Plan (restored from snapshot)
+```
+
+Generate never destroys saved versions. Manual edits never alter saved versions.

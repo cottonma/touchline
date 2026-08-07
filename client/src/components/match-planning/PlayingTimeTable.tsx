@@ -49,7 +49,7 @@ export function PlayingTimeTable({ slots, players, periods, periodDuration, matc
         const totalOutfield = quarterMinutes.reduce((sum, q) => sum + q.outfield, 0);
         const totalGk = quarterMinutes.reduce((sum, q) => sum + q.gk, 0);
         const total = totalOutfield + totalGk;
-        const diff = total - targetMinutes;
+        const diff = totalOutfield - targetMinutes; // fairness uses outfield only
 
         return {
           player,

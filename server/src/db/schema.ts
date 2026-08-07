@@ -417,3 +417,18 @@ export const matchPlanSlots = pgTable('match_plan_slots', {
   endMinute: integer('end_minute').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+// ============================================================
+// MATCH PLAN VERSIONS - Saved snapshots
+// ============================================================
+
+export const matchPlanVersions = pgTable('match_plan_versions', {
+  id: text('id').primaryKey(),
+  matchPlanId: text('match_plan_id').notNull().references(() => matchPlans.id),
+  name: text('name').notNull(),
+  slotsSnapshot: text('slots_snapshot').notNull(),
+  formation: text('formation'),
+  isFinal: boolean('is_final').notNull().default(false),
+  generatedBy: text('generated_by'),
+  createdAt: text('created_at').notNull(),
+});

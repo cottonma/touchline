@@ -36,9 +36,10 @@ export function PlayerPool({ entries, targetMinutes, selectedPlayerId, onPlayerT
 
   return (
     <div className={cn('space-y-1', compact ? 'max-h-48 overflow-y-auto' : '')}>
-      {sorted.map(({ player, plannedMinutes, isAllocated }) => {
+      {sorted.map(({ player, plannedMinutes, outfieldMinutes, isAllocated }) => {
         const isSelected = selectedPlayerId === player.id;
-        const diff = plannedMinutes - targetMinutes;
+        // Fairness diff uses outfield minutes only (GK time doesn't count)
+        const diff = outfieldMinutes - targetMinutes;
         const diffLabel = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '±0';
         const diffColor = Math.abs(diff) <= 2 ? 'text-emerald-600' : diff < 0 ? 'text-red-600' : 'text-amber-600';
 

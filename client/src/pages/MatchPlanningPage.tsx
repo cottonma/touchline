@@ -204,31 +204,35 @@ export function MatchPlanningPage() {
     });
   }, [availablePlayers, playerMinutes]);
 
-  // Target minutes
+  // Target outfield minutes per player (for fairness comparison)
   const targetMinutes = useMemo(() => {
     if (availablePlayers.length === 0) return 0;
+    // Target = total outfield slot-minutes / number of players
     return Math.round(matchDuration * (plan?.outfieldSlots ?? 6) / availablePlayers.length);
   }, [matchDuration, plan, availablePlayers]);
 
-  // Intelligence data
+  // Intelligence data — fairness uses OUTFIELD minutes only
   const intelligence: PlanIntelligence = useMemo(() => {
     const allocatedEntries = poolEntries.filter(e => e.isAllocated);
-    const allMinutes = poolEntries.map(e => e.plannedMinutes);
-    const allocated = allMinutes.filter(m => m > 0);
+    // Use outfield minutes for fairness (GK minutes don't count toward balance)
+    const outfieldMins = poolEntries.map(e => e.outfieldMinutes);
+    const allocatedOutfield = outfieldMins.filter(m => m > 0);
 
     const warnings: string[] = [];
-    if (allocated.length > 0) {
-      const diff = Math.max(...allocated) - Math.min(...allocated);
-      if (diff > 5) warnings.push(`${diff} min difference between highest and lowest`);
+    if (allocatedOutfield.length > 0) {
+      const diff = Math.max(...allocatedOutfield) - Math.min(...allocatedOutfield);
+      if (diff > 5) warnings.push(`${diff} min outfield difference between highest and lowest`);
     }
+    // Also check for players with zero minutes (total, not just outfield)
+    const totalAllocated = poolEntries.filter(e => e.plannedMinutes > 0);
 
     return {
       availableCount: availablePlayers.length,
-      selectedCount: allocatedEntries.length,
+      selectedCount: totalAllocated.length,
       notAllocatedCount: poolEntries.filter(e => !e.isAllocated).length,
-      highestMinutes: allocated.length > 0 ? Math.max(...allocated) : 0,
-      lowestMinutes: allocated.length > 0 ? Math.min(...allocated) : 0,
-      averageMinutes: allocated.length > 0 ? Math.round(allocated.reduce((a, b) => a + b, 0) / allocated.length) : 0,
+      highestMinutes: allocatedOutfield.length > 0 ? Math.max(...allocatedOutfield) : 0,
+      lowestMinutes: allocatedOutfield.length > 0 ? Math.min(...allocatedOutfield) : 0,
+      averageMinutes: allocatedOutfield.length > 0 ? Math.round(allocatedOutfield.reduce((a, b) => a + b, 0) / allocatedOutfield.length) : 0,
       warnings,
     };
   }, [poolEntries, availablePlayers]);
