@@ -58,7 +58,6 @@ export function MatchDayPageV2() {
   const [motmPlayerId, setMotmPlayerId] = useState('');
   const [coachNotes, setCoachNotes] = useState('');
   const [clubName, setClubName] = useState('');
-  const [activePeriod, setActivePeriod] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -125,25 +124,6 @@ export function MatchDayPageV2() {
   // Final score
   const totalGoalsFor = periodScores.reduce((s, p) => s + p.goalsFor, 0);
   const totalGoalsAgainst = periodScores.reduce((s, p) => s + p.goalsAgainst, 0);
-
-  // Active period pitch
-  const periodSlots = useMemo(() => slots.filter(s => s.period === activePeriod), [slots, activePeriod]);
-  const pitchSlots: PitchSlot[] = useMemo(() => {
-    const formSlots = getFormationSlots(formation);
-    return formSlots.map(fs => {
-      const posSlots = periodSlots.filter(s => {
-        if (fs.isGk && s.isGk) return true;
-        return s.position === fs.position && !s.isGk;
-      }).sort((a, b) => a.startMinute - b.startMinute);
-      if (posSlots.length === 0) return fs;
-      const segments = posSlots.map(s => {
-        const p = availablePlayers.find(pl => pl.id === s.playerId);
-        return { playerId: s.playerId, playerName: p ? `${p.firstName} ${p.lastName}` : '?', startMinute: s.startMinute, endMinute: s.endMinute, isGk: s.isGk };
-      });
-      const first = availablePlayers.find(p => p.id === posSlots[0].playerId);
-      return { ...fs, playerId: posSlots[0].playerId, playerName: first ? `${first.firstName} ${first.lastName}` : '?', segments: segments.length > 1 ? segments : undefined };
-    });
-  }, [formation, periodSlots, availablePlayers]);
 
   // Handle score change for a period
   const handlePeriodScore = (period: number, team: 'for' | 'against', value: number) => {
@@ -226,29 +206,29 @@ export function MatchDayPageV2() {
             </CardContent>
           </Card>
 
-          {/* Period scores */}
+          {/* Period scores — 2 columns */}
           <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm">Period Scores</CardTitle>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-xs">Period Scores</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="space-y-2">
+            <CardContent className="p-3 pt-0">
+              <div className="grid grid-cols-2 gap-2">
                 {periodScores.map(ps => (
-                  <div key={ps.period} className="flex items-center gap-3">
-                    <span className="text-xs font-medium w-8">Q{ps.period}</span>
+                  <div key={ps.period} className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold w-6">Q{ps.period}</span>
                     <Input
                       type="number" min={0} max={20}
                       value={ps.goalsFor || ''}
                       onChange={(e) => handlePeriodScore(ps.period, 'for', Number(e.target.value) || 0)}
-                      className="w-14 h-9 text-center text-sm"
+                      className="w-10 h-7 text-center text-xs p-0"
                       placeholder="0"
                     />
-                    <span className="text-muted-foreground">–</span>
+                    <span className="text-[10px] text-muted-foreground">–</span>
                     <Input
                       type="number" min={0} max={20}
                       value={ps.goalsAgainst || ''}
                       onChange={(e) => handlePeriodScore(ps.period, 'against', Number(e.target.value) || 0)}
-                      className="w-14 h-9 text-center text-sm"
+                      className="w-10 h-7 text-center text-xs p-0"
                       placeholder="0"
                     />
                   </div>
@@ -257,21 +237,53 @@ export function MatchDayPageV2() {
             </CardContent>
           </Card>
 
-          {/* Period tabs + pitch */}
+          {/* Full match view — all periods as compact pitches + edit button */}
           <div>
-            <div className="flex border-b mb-3">
-              {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(p => (
-                <button
-                  key={p}
-                  onClick={() => setActivePeriod(p)}
-                  className={`flex-1 py-2 text-sm font-medium min-h-[44px] ${activePeriod === p ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground'}`}
-                >
-                  Q{p}
-                </button>
-              ))}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Match Plan</span>
+              <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => {
+                // Navigate to team selection to edit the plan
+                window.location.href = `/team-selection?fixture=${selectedFixtureId}`;
+              }}>
+                Edit Plan (injuries/no-shows)
+              </Button>
             </div>
-            <PitchView formation={formation} slots={pitchSlots} availablePlayers={availablePlayers} periodDuration={periodDuration} compact />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => {
+                const pSlots = slots.filter(s => s.period === period);
+                const formSlots = getFormationSlots(formation);
+                const pPitchSlots: PitchSlot[] = formSlots.map(fs => {
+                  const posSlots = pSlots.filter(s => {
+                    if (fs.isGk && s.isGk) return true;
+                    return s.position === fs.position && !s.isGk;
+                  }).sort((a, b) => a.startMinute - b.startMinute);
+                  if (posSlots.length === 0) return fs;
+                  const segments = posSlots.map(s => {
+                    const p = availablePlayers.find(pl => pl.id === s.playerId);
+                    return { playerId: s.playerId, playerName: p ? `${p.firstName} ${p.lastName}` : '?', startMinute: s.startMinute, endMinute: s.endMinute, isGk: s.isGk };
+                  });
+                  const first = availablePlayers.find(p => p.id === posSlots[0].playerId);
+                  return { ...fs, playerId: posSlots[0].playerId, playerName: first ? `${first.firstName} ${first.lastName}` : '?', segments: segments.length > 1 ? segments : undefined };
+                });
+                return (
+                  <div key={period}>
+                    <span className="text-[10px] font-bold block text-center mb-0.5">Q{period}</span>
+                    <PitchView formation={formation} slots={pPitchSlots} availablePlayers={availablePlayers} periodDuration={periodDuration} compact />
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Playing Time table — directly under match view */}
+          <PlayingTimeTable
+            slots={slots}
+            players={availablePlayers}
+            periods={totalPeriods}
+            periodDuration={periodDuration}
+            matchDuration={matchDuration}
+            outfieldSlots={plan?.outfieldSlots ?? 6}
+          />
 
           {/* Goals & Assists */}
           <Card>
@@ -325,23 +337,6 @@ export function MatchDayPageV2() {
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Playing Time (auto-calculated from plan) */}
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm">Planned Playing Time</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <PlayingTimeTable
-                slots={slots}
-                players={availablePlayers}
-                periods={totalPeriods}
-                periodDuration={periodDuration}
-                matchDuration={matchDuration}
-                outfieldSlots={plan?.outfieldSlots ?? 6}
-              />
             </CardContent>
           </Card>
 
