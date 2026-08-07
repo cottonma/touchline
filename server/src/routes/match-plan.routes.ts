@@ -210,3 +210,33 @@ router.delete('/:fixtureId/versions/:versionId', asyncHandler(async (req, res) =
   await db.delete(matchPlanVersions).where(eq(matchPlanVersions.id, versionId));
   res.json({ data: { success: true } });
 }));
+
+// ─── MATCH COMPLETION ────────────────────────────────────────────────────────
+
+import { matchCompletionService } from '../services/match-completion.service.js';
+
+// Complete match — calculates actual minutes from plan structure
+router.post('/:fixtureId/complete', asyncHandler(async (req, res) => {
+  const fixtureId = req.params.fixtureId as string;
+  const { periodScores, coachNotes, motmPlayerId, goals: goalEntries } = req.body;
+
+  if (!Array.isArray(periodScores)) {
+    res.status(400).json({ error: 'periodScores must be an array' });
+    return;
+  }
+
+  const result = await matchCompletionService.completeMatch({
+    fixtureId,
+    periodScores,
+    coachNotes,
+    motmPlayerId,
+    goalEntries: goalEntries ?? [],
+  });
+
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ data: result.data });
+}));
