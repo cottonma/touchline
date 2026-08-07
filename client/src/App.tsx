@@ -13,6 +13,7 @@ import { AvailabilityPage } from '@/pages/AvailabilityPage';
 import { TeamSelectionPage } from '@/pages/TeamSelectionPage';
 import { MatchPlanningPage } from '@/pages/MatchPlanningPage';
 import { MatchDayPage } from '@/pages/MatchDayPage';
+import { MatchDayPageV2 } from '@/pages/MatchDayPageV2';
 import { StatsPage } from '@/pages/StatsPage';
 import { DevelopmentPage } from '@/pages/DevelopmentPage';
 import { TrainingPage } from '@/pages/TrainingPage';
@@ -68,7 +69,7 @@ function App() {
                 <Route path="fixtures/:id" element={<FixtureDetailPage />} />
                 <Route path="availability" element={<AvailabilityPage />} />
                 <Route path="team-selection" element={<MatchPlanningPage />} />
-                <Route path="match-day" element={<MatchDayPage />} />
+                <Route path="match-day" element={<MatchDayPageV2 />} />
                 <Route path="scout-report" element={<ScoutReportPage />} />
                 <Route path="stats" element={<StatsPage />} />
                 <Route path="development" element={<DevelopmentPage />} />
