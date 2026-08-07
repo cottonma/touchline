@@ -11,6 +11,7 @@ import { PlayerPool, type PlayerPoolEntry } from '@/components/match-planning/Pl
 import { IntelligencePanel, type PlanIntelligence } from '@/components/match-planning/IntelligencePanel';
 import { PlayingTimeTable } from '@/components/match-planning/PlayingTimeTable';
 import { SubstitutionPanel } from '@/components/match-planning/SubstitutionPanel';
+import { SavedPlansPanel } from '@/components/match-planning/SavedPlansPanel';
 import { api } from '@/lib/api';
 import type { PlayerForSelection } from '@/services/team-selection.service';
 import type { Fixture } from '@/services/fixture.service';
@@ -66,6 +67,8 @@ export function MatchPlanningPage() {
   const [viewMode, setViewMode] = useState<'pitch' | 'time' | 'overview'>('pitch');
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({});
   const [showUnavailable, setShowUnavailable] = useState(false);
+  const [versions, setVersions] = useState<any[]>([]);
+  const [lastSavedSlots, setLastSavedSlots] = useState<string>('[]'); // JSON for dirty check
 
   const { data: fixtures } = useFixtures({ status: 'upcoming' });
   const { data: players } = usePlayers();
@@ -88,6 +91,7 @@ export function MatchPlanningPage() {
       .then(([planRes, availRes]) => {
         setPlan(planRes.data.plan);
         setAllSlots(planRes.data.slots);
+        setLastSavedSlots(JSON.stringify(planRes.data.slots));
         // Build availability map: playerId -> status
         const avMap: Record<string, string> = {};
         const avData = Array.isArray(availRes.data) ? availRes.data : (availRes as any)?.data ?? [];
@@ -95,6 +99,10 @@ export function MatchPlanningPage() {
           if (a.playerId && a.status) avMap[a.playerId] = a.status;
         }
         setAvailabilityMap(avMap);
+        // Fetch versions
+        api.get<{ data: any[] }>(`/match-plans/${selectedFixtureId}/versions`)
+          .then(res => setVersions(res.data ?? []))
+          .catch(() => setVersions([]));
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -236,6 +244,29 @@ export function MatchPlanningPage() {
       warnings,
     };
   }, [poolEntries, availablePlayers]);
+
+  // Track unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    return JSON.stringify(allSlots) !== lastSavedSlots;
+  }, [allSlots, lastSavedSlots]);
+
+  const fetchVersions = useCallback(() => {
+    if (!selectedFixtureId) return;
+    api.get<{ data: any[] }>(`/match-plans/${selectedFixtureId}/versions`)
+      .then(res => setVersions(res.data ?? []))
+      .catch(() => {});
+  }, [selectedFixtureId]);
+
+  /** Restore a saved version */
+  const handleRestoreVersion = useCallback(async (versionId: string) => {
+    if (!selectedFixtureId) return;
+    try {
+      const res = await api.post<{ data: { plan: MatchPlan; slots: SlotData[] } }>(`/match-plans/${selectedFixtureId}/versions/${versionId}/restore`, {});
+      setPlan(res.data.plan);
+      setAllSlots(res.data.slots);
+      setLastSavedSlots(JSON.stringify(res.data.slots));
+    } catch {}
+  }, [selectedFixtureId]);
 
   // === ACTIONS ===
 
@@ -436,6 +467,7 @@ export function MatchPlanningPage() {
       }));
       const res = await api.put<{ data: SlotData[] }>(`/match-plans/${selectedFixtureId}/slots`, { slots: slotsToSave });
       setAllSlots(res.data);
+      setLastSavedSlots(JSON.stringify(res.data));
       // Update status to draft if not already
       if (plan?.status === 'not_started') {
         await api.put(`/match-plans/${selectedFixtureId}/status`, { status: 'draft' });
@@ -770,6 +802,21 @@ export function MatchPlanningPage() {
                         </CardHeader>
                         <CardContent className="p-3 pt-0">
                           <IntelligencePanel data={intelligence} />
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="p-3 pb-1">
+                          <CardTitle className="text-sm">Saved Plans</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          <SavedPlansPanel
+                            fixtureId={selectedFixtureId!}
+                            versions={versions}
+                            onVersionsChange={fetchVersions}
+                            onRestore={handleRestoreVersion}
+                            hasUnsavedChanges={hasUnsavedChanges}
+                          />
                         </CardContent>
                       </Card>
                     </div>
