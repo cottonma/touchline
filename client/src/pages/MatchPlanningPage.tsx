@@ -140,23 +140,39 @@ export function MatchPlanningPage() {
   const pitchSlots: PitchSlot[] = useMemo(() => {
     const formSlots = getFormationSlots(formation);
     return formSlots.map(fs => {
-      // Find a player assigned to this position in this period
-      const assigned = periodSlots.find(s => {
-        // Match by position — handle GK specially
+      // Find ALL players assigned to this position in this period
+      const positionSlots = periodSlots.filter(s => {
         if (fs.isGk && s.isGk) return true;
-        return s.position === fs.position && !s.isGk && s.startMinute === 0;
-      });
-      if (assigned) {
-        const player = availablePlayers.find(p => p.id === assigned.playerId);
+        return s.position === fs.position && !s.isGk;
+      }).sort((a, b) => a.startMinute - b.startMinute);
+
+      if (positionSlots.length === 0) return fs;
+
+      // Build segments from all players sharing this position
+      const segments = positionSlots.map(s => {
+        const player = availablePlayers.find(p => p.id === s.playerId) ||
+          (players ?? []).find(p => p.id === s.playerId);
         return {
-          ...fs,
-          playerId: assigned.playerId,
-          playerName: player ? `${player.firstName} ${player.lastName}` : assigned.playerId,
+          playerId: s.playerId,
+          playerName: player ? `${player.firstName} ${player.lastName}` : s.playerId,
+          startMinute: s.startMinute,
+          endMinute: s.endMinute,
+          isGk: s.isGk,
         };
-      }
-      return fs;
+      });
+
+      // First player is the "primary" for the slot
+      const firstPlayer = availablePlayers.find(p => p.id === positionSlots[0].playerId) ||
+        (players ?? []).find(p => p.id === positionSlots[0].playerId);
+
+      return {
+        ...fs,
+        playerId: positionSlots[0].playerId,
+        playerName: firstPlayer ? `${firstPlayer.firstName} ${firstPlayer.lastName}` : positionSlots[0].playerId,
+        segments: segments.length > 1 ? segments : undefined,
+      };
     });
-  }, [formation, periodSlots, availablePlayers]);
+  }, [formation, periodSlots, availablePlayers, players]);
 
   // Calculate playing time for each player across all periods
   const playerMinutes = useMemo(() => {
@@ -611,19 +627,27 @@ export function MatchPlanningPage() {
                       const pSlots = allSlots.filter(s => s.period === period);
                       const formSlots = getFormationSlots(formation);
                       const pPitchSlots: PitchSlot[] = formSlots.map(fs => {
-                        const assigned = pSlots.find(s => {
+                        const posSlots = pSlots.filter(s => {
                           if (fs.isGk && s.isGk) return true;
-                          return s.position === fs.position && !s.isGk && s.startMinute === 0;
+                          return s.position === fs.position && !s.isGk;
+                        }).sort((a, b) => a.startMinute - b.startMinute);
+
+                        if (posSlots.length === 0) return fs;
+
+                        const segments = posSlots.map(s => {
+                          const p = availablePlayers.find(pl => pl.id === s.playerId) || (players ?? []).find(pl => pl.id === s.playerId);
+                          return { playerId: s.playerId, playerName: p ? `${p.firstName} ${p.lastName}` : '?', startMinute: s.startMinute, endMinute: s.endMinute, isGk: s.isGk };
                         });
-                        if (assigned) {
-                          const player = availablePlayers.find(p => p.id === assigned.playerId) ||
-                            (players ?? []).find(p => p.id === assigned.playerId);
-                          return { ...fs, playerId: assigned.playerId, playerName: player ? `${player.firstName} ${player.lastName}` : '?' };
-                        }
-                        return fs;
+                        const firstP = availablePlayers.find(p => p.id === posSlots[0].playerId) || (players ?? []).find(p => p.id === posSlots[0].playerId);
+                        return {
+                          ...fs,
+                          playerId: posSlots[0].playerId,
+                          playerName: firstP ? `${firstP.firstName} ${firstP.lastName}` : '?',
+                          segments: segments.length > 1 ? segments : undefined,
+                        };
                       });
 
-                      // Subs for this period
+                      // Subs for this period (for the text list below pitch)
                       const subs = pSlots
                         .filter(s => s.endMinute < periodDuration && s.startMinute === 0)
                         .map(offSlot => {
@@ -650,6 +674,7 @@ export function MatchPlanningPage() {
                             formation={formation}
                             slots={pPitchSlots}
                             availablePlayers={availablePlayers}
+                            periodDuration={periodDuration}
                             compact
                           />
                           {subs.length > 0 && (
@@ -694,6 +719,7 @@ export function MatchPlanningPage() {
                         selectedSlotId={selectedSlotId}
                         selectedPoolPlayerId={selectedPoolPlayer}
                         onSlotTap={handleSlotTap}
+                        periodDuration={periodDuration}
                       />
 
                       {/* Selection hint */}

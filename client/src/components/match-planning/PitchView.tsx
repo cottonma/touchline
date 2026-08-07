@@ -29,9 +29,19 @@ export interface PitchSlot {
   position: string;    // position label e.g. "LB", "CM", "CF"
   x: number;           // percentage x position on pitch
   y: number;           // percentage y position on pitch
-  playerId?: string;   // assigned player
+  playerId?: string;   // assigned player (first/starting player)
   playerName?: string; // display name
   isGk?: boolean;
+  /** Multiple player segments for positions with subs within a period */
+  segments?: SlotSegment[];
+}
+
+export interface SlotSegment {
+  playerId: string;
+  playerName: string;
+  startMinute: number;
+  endMinute: number;
+  isGk: boolean;
 }
 
 export interface PitchViewProps {
@@ -42,6 +52,7 @@ export interface PitchViewProps {
   selectedPoolPlayerId?: string | null;
   onSlotTap?: (slotId: string) => void;
   onSlotDrop?: (slotId: string, playerId: string) => void;
+  periodDuration?: number;     // for displaying time ranges
   compact?: boolean;           // smaller version for period tabs
   className?: string;
 }
@@ -148,6 +159,7 @@ export function PitchView({
   selectedSlotId,
   selectedPoolPlayerId,
   onSlotTap,
+  periodDuration,
   compact = false,
   className,
 }: PitchViewProps) {
@@ -183,11 +195,78 @@ export function PitchView({
 
       {/* Position slots */}
       {mergedSlots.map((slot) => {
+        const segments = slot.segments ?? [];
+        const hasSub = segments.length > 1;
         const player = availablePlayers?.find(p => p.id === slot.playerId);
         const isSelected = selectedSlotId === slot.id;
         const isDropTarget = selectedPoolPlayerId && !slot.playerId;
         const fitClass = slot.playerId ? getSlotFitClass(slot, player) : '';
+        const dur = periodDuration ?? 15;
 
+        // Split marker: multiple players share this position
+        if (hasSub && !compact) {
+          return (
+            <button
+              key={slot.id}
+              onClick={() => onSlotTap?.(slot.id)}
+              className={cn(
+                'absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-stretch transition-all bg-white/95 shadow-md overflow-hidden',
+                'w-16 md:w-20 rounded-lg ring-2',
+                fitClass || 'ring-emerald-400',
+                isSelected && 'ring-4 ring-blue-400 scale-105',
+              )}
+              style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+            >
+              {segments.map((seg, i) => (
+                <div key={`${seg.playerId}-${i}`} className={cn(
+                  'px-1 py-0.5 text-center',
+                  i > 0 && 'border-t border-dashed border-gray-300',
+                  i === 0 ? 'bg-white' : 'bg-gray-50',
+                )}>
+                  <span className="text-[9px] md:text-[10px] font-bold text-emerald-800 block leading-tight truncate">
+                    {seg.playerName.split(' ')[0]}
+                  </span>
+                  <span className="text-[7px] md:text-[8px] text-muted-foreground">
+                    {seg.startMinute}–{seg.endMinute}'
+                  </span>
+                </div>
+              ))}
+              <div className="bg-emerald-700 text-white text-[7px] md:text-[8px] font-bold text-center py-0.5">
+                {slot.position}
+              </div>
+            </button>
+          );
+        }
+
+        // Compact split marker (Full Match View)
+        if (hasSub && compact) {
+          return (
+            <button
+              key={slot.id}
+              onClick={() => onSlotTap?.(slot.id)}
+              className={cn(
+                'absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all bg-white/95 shadow-sm overflow-hidden rounded-md ring-1 ring-emerald-400',
+                'w-10 min-h-[2.5rem]',
+                isSelected && 'ring-2 ring-blue-400',
+              )}
+              style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+            >
+              {segments.map((seg, i) => (
+                <div key={`${seg.playerId}-${i}`} className={cn(
+                  'w-full text-center px-0.5',
+                  i > 0 && 'border-t border-dashed border-gray-200',
+                )}>
+                  <span className="text-[7px] font-bold text-emerald-800 block leading-tight truncate">
+                    {seg.playerName.split(' ')[0]}
+                  </span>
+                  <span className="text-[6px] text-muted-foreground">{seg.endMinute - seg.startMinute}m</span>
+                </div>
+              ))}
+            </button>
+          );
+        }
+
+        // Standard single-player marker (unchanged)
         return (
           <button
             key={slot.id}
