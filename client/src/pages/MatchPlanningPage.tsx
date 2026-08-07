@@ -63,7 +63,9 @@ export function MatchPlanningPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'pitch' | 'time'>('pitch');
+  const [viewMode, setViewMode] = useState<'pitch' | 'time' | 'overview'>('pitch');
+  const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({});
+  const [showUnavailable, setShowUnavailable] = useState(false);
 
   const { data: fixtures } = useFixtures({ status: 'upcoming' });
   const { data: players } = usePlayers();
@@ -74,15 +76,25 @@ export function MatchPlanningPage() {
     setSelectedFixtureId(matchFixtures[0].id);
   }
 
-  // Load plan when fixture changes
+  // Load plan and availability when fixture changes
   useEffect(() => {
     if (!selectedFixtureId) return;
     setLoading(true);
     setError(null);
-    api.get<{ data: { plan: MatchPlan; slots: SlotData[] } }>(`/match-plans/${selectedFixtureId}`)
-      .then(res => {
-        setPlan(res.data.plan);
-        setAllSlots(res.data.slots);
+    Promise.all([
+      api.get<{ data: { plan: MatchPlan; slots: SlotData[] } }>(`/match-plans/${selectedFixtureId}`),
+      api.get<{ data: any[] }>(`/fixtures/${selectedFixtureId}/availability`).catch(() => ({ data: [] })),
+    ])
+      .then(([planRes, availRes]) => {
+        setPlan(planRes.data.plan);
+        setAllSlots(planRes.data.slots);
+        // Build availability map: playerId -> status
+        const avMap: Record<string, string> = {};
+        const avData = Array.isArray(availRes.data) ? availRes.data : (availRes as any)?.data ?? [];
+        for (const a of avData) {
+          if (a.playerId && a.status) avMap[a.playerId] = a.status;
+        }
+        setAvailabilityMap(avMap);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -96,19 +108,33 @@ export function MatchPlanningPage() {
   // Current period's slots
   const periodSlots = useMemo(() => allSlots.filter(s => s.period === activePeriod), [allSlots, activePeriod]);
 
-  // Build available players list (from squad who are available for the fixture)
-  // For now use all players — availability filtering happens on generate
+  // Build available players list filtered by fixture availability
   const availablePlayers: PlayerForSelection[] = useMemo(() => {
-    return (players ?? []).map(p => ({
-      id: p.id,
-      firstName: p.firstName,
-      lastName: p.lastName,
-      primaryPosition: p.primaryPosition,
-      secondaryPosition: p.secondaryPosition ?? null,
-      tertiaryPosition: p.tertiaryPosition ?? null,
-      isGkVolunteer: p.isGkVolunteer,
-    }));
-  }, [players]);
+    return (players ?? [])
+      .filter(p => {
+        const status = availabilityMap[p.id];
+        if (showUnavailable) return true; // coach override: show all
+        return status === 'available'; // only show available players
+      })
+      .map(p => ({
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        primaryPosition: p.primaryPosition,
+        secondaryPosition: p.secondaryPosition ?? null,
+        tertiaryPosition: p.tertiaryPosition ?? null,
+        isGkVolunteer: p.isGkVolunteer,
+      }));
+  }, [players, availabilityMap, showUnavailable]);
+
+  // Players in the plan who are now unavailable (availability changed after selection)
+  const unavailableInPlan = useMemo(() => {
+    const plannedPlayerIds = new Set(allSlots.map(s => s.playerId));
+    return [...plannedPlayerIds].filter(pid => {
+      const status = availabilityMap[pid];
+      return status === 'unavailable' || status === 'unknown';
+    });
+  }, [allSlots, availabilityMap]);
 
   // Convert DB slots to PitchSlot format for rendering
   const pitchSlots: PitchSlot[] = useMemo(() => {
@@ -501,7 +527,7 @@ export function MatchPlanningPage() {
                 </Button>
               </div>
 
-              {/* View toggle: Pitch | Playing Time */}
+              {/* View toggle: Pitch | Playing Time | Overview */}
               <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
                 <button
                   onClick={() => setViewMode('pitch')}
@@ -519,7 +545,38 @@ export function MatchPlanningPage() {
                 >
                   Playing Time
                 </button>
+                <button
+                  onClick={() => setViewMode('overview')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === 'overview' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  Full Match
+                </button>
               </div>
+
+              {/* Availability warning: players in plan now unavailable */}
+              {unavailableInPlan.length > 0 && (
+                <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                  <span className="font-medium">⚠ Availability changed:</span>{' '}
+                  {unavailableInPlan.map(pid => {
+                    const p = (players ?? []).find(pl => pl.id === pid);
+                    return p ? `${p.firstName} ${p.lastName}` : pid;
+                  }).join(', ')}{' '}
+                  {unavailableInPlan.length === 1 ? 'is' : 'are'} now marked unavailable but still in the plan. Please review.
+                </div>
+              )}
+
+              {/* Show unavailable toggle */}
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={showUnavailable}
+                  onChange={(e) => setShowUnavailable(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-input"
+                />
+                Show unavailable players
+              </label>
 
               {viewMode === 'time' ? (
                 /* Playing Time Table view */
@@ -535,6 +592,94 @@ export function MatchPlanningPage() {
                     />
                   </CardContent>
                 </Card>
+              ) : viewMode === 'overview' ? (
+                /* Full Match Overview — all periods on one page */
+                <div className="space-y-4 print:space-y-2">
+                  {/* Match header for screenshot/print */}
+                  <div className="text-center py-2 border-b print:border-0">
+                    <p className="text-lg font-bold">{selectedFixture?.homeAway === 'home' ? 'vs' : '@'} {selectedFixture?.opponent}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedFixture && new Date(selectedFixture.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      {selectedFixture?.kickOffTime && ` — KO ${selectedFixture.kickOffTime}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Formation: {formation} | {totalPeriods} × {periodDuration} min</p>
+                  </div>
+
+                  {/* All periods as compact pitches */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:gap-2">
+                    {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => {
+                      const pSlots = allSlots.filter(s => s.period === period);
+                      const formSlots = getFormationSlots(formation);
+                      const pPitchSlots: PitchSlot[] = formSlots.map(fs => {
+                        const assigned = pSlots.find(s => {
+                          if (fs.isGk && s.isGk) return true;
+                          return s.position === fs.position && !s.isGk && s.startMinute === 0;
+                        });
+                        if (assigned) {
+                          const player = availablePlayers.find(p => p.id === assigned.playerId) ||
+                            (players ?? []).find(p => p.id === assigned.playerId);
+                          return { ...fs, playerId: assigned.playerId, playerName: player ? `${player.firstName} ${player.lastName}` : '?' };
+                        }
+                        return fs;
+                      });
+
+                      // Subs for this period
+                      const subs = pSlots
+                        .filter(s => s.endMinute < periodDuration && s.startMinute === 0)
+                        .map(offSlot => {
+                          const onSlot = pSlots.find(s => s.position === offSlot.position && s.startMinute === offSlot.endMinute);
+                          if (!onSlot) return null;
+                          const offP = (players ?? []).find(p => p.id === offSlot.playerId);
+                          const onP = (players ?? []).find(p => p.id === onSlot.playerId);
+                          return { minute: offSlot.endMinute, off: offP?.firstName ?? '?', on: onP?.firstName ?? '?' };
+                        })
+                        .filter(Boolean) as { minute: number; off: string; on: string }[];
+
+                      return (
+                        <div key={period} className="space-y-1">
+                          <div className="flex items-center justify-between px-1">
+                            <span className="text-xs font-bold">Q{period}</span>
+                            <button
+                              onClick={() => { setActivePeriod(period); setViewMode('pitch'); }}
+                              className="text-[10px] text-primary hover:underline print:hidden"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                          <PitchView
+                            formation={formation}
+                            slots={pPitchSlots}
+                            availablePlayers={availablePlayers}
+                            compact
+                          />
+                          {subs.length > 0 && (
+                            <div className="space-y-0.5 px-1">
+                              {subs.map((sub, i) => (
+                                <div key={i} className="text-[10px] text-muted-foreground">
+                                  {sub.minute}' {sub.off} → {sub.on}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Playing time summary below */}
+                  <Card className="print:shadow-none print:border-0">
+                    <CardContent className="p-4">
+                      <PlayingTimeTable
+                        slots={allSlots}
+                        players={availablePlayers}
+                        periods={totalPeriods}
+                        periodDuration={periodDuration}
+                        matchDuration={matchDuration}
+                        outfieldSlots={plan?.outfieldSlots ?? 6}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
               ) : (
                 /* Pitch view workspace */
                 <>
