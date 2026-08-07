@@ -11,6 +11,7 @@ import { usePlayers } from '@/hooks/use-players';
 import { useRecordMatch } from '@/hooks/use-match-day';
 import { useApprovedPlan, useRegenerateTeamSelection } from '@/hooks/use-team-selection';
 import { useOppositionNotes, useCreateOppositionNote } from '@/hooks/use-opposition-notes';
+import { api } from '@/lib/api';
 import type { SubstitutionPlan, PeriodPlan, EngineConfig, PlayerForSelection } from '@/services/team-selection.service';
 
 const POSITION_SHORT: Record<string, string> = {
@@ -57,6 +58,7 @@ export function MatchDayPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [oppositionNotesText, setOppositionNotesText] = useState('');
+  const [clubName, setClubName] = useState('');
 
   // Match day adjustments state
   const [excludedPlayerIds, setExcludedPlayerIds] = useState<string[]>([]);
@@ -68,6 +70,15 @@ export function MatchDayPage() {
   const { data: players } = usePlayers();
   const recordMatch = useRecordMatch();
   const regeneratePlan = useRegenerateTeamSelection();
+
+  // Fetch club name
+  useEffect(() => {
+    api.get<any[]>('/auth/clubs').then(clubs => {
+      const activeClub = localStorage.getItem('touchline_active_club');
+      const club = clubs.find((c: any) => c.id === activeClub) ?? clubs[0];
+      if (club) setClubName(club.name || 'Our Team');
+    }).catch(() => {});
+  }, []);
   const createOppositionNote = useCreateOppositionNote();
 
   const { data: completedFixtures } = useFixtures({ status: 'completed' });
@@ -325,18 +336,19 @@ export function MatchDayPage() {
               <div className="flex items-center gap-4 justify-center">
                 <div className="space-y-1 text-center flex-1">
                   <Label className="text-xs font-medium truncate block">
-                    {selectedFixture?.homeAway === 'home' ? 'Home' : 'Away'}
+                    {selectedFixture?.homeAway === 'home' ? clubName : selectedFixture?.opponent ?? 'Opponent'}
                   </Label>
                   <Input
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={goalsFor === 0 && !goalsForTouched ? '' : goalsFor}
-                    onFocus={() => setGoalsForTouched(true)}
+                    value={goalsFor === 0 && !goalsForTouched ? '' : (selectedFixture?.homeAway === 'home' ? goalsFor : goalsAgainst)}
+                    onFocus={() => selectedFixture?.homeAway === 'home' ? setGoalsForTouched(true) : setGoalsAgainstTouched(true)}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setGoalsForTouched(true);
-                      setGoalsFor(val === '' ? 0 : Math.min(50, Math.max(0, parseInt(val) || 0)));
+                      const num = val === '' ? 0 : Math.min(50, Math.max(0, parseInt(val) || 0));
+                      if (selectedFixture?.homeAway === 'home') { setGoalsForTouched(true); setGoalsFor(num); }
+                      else { setGoalsAgainstTouched(true); setGoalsAgainst(num); }
                     }}
                     placeholder="0"
                     className="w-20 mx-auto text-center text-2xl font-bold h-14"
@@ -345,18 +357,19 @@ export function MatchDayPage() {
                 <span className="text-2xl font-bold text-muted-foreground">–</span>
                 <div className="space-y-1 text-center flex-1">
                   <Label className="text-xs font-medium truncate block">
-                    {selectedFixture?.opponent ?? 'Opponent'}
+                    {selectedFixture?.homeAway === 'home' ? selectedFixture?.opponent ?? 'Opponent' : clubName}
                   </Label>
                   <Input
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={goalsAgainst === 0 && !goalsAgainstTouched ? '' : goalsAgainst}
-                    onFocus={() => setGoalsAgainstTouched(true)}
+                    value={goalsAgainst === 0 && !goalsAgainstTouched ? '' : (selectedFixture?.homeAway === 'home' ? goalsAgainst : goalsFor)}
+                    onFocus={() => selectedFixture?.homeAway === 'home' ? setGoalsAgainstTouched(true) : setGoalsForTouched(true)}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setGoalsAgainstTouched(true);
-                      setGoalsAgainst(val === '' ? 0 : Math.min(50, Math.max(0, parseInt(val) || 0)));
+                      const num = val === '' ? 0 : Math.min(50, Math.max(0, parseInt(val) || 0));
+                      if (selectedFixture?.homeAway === 'home') { setGoalsAgainstTouched(true); setGoalsAgainst(num); }
+                      else { setGoalsForTouched(true); setGoalsFor(num); }
                     }}
                     placeholder="0"
                     className="w-20 mx-auto text-center text-2xl font-bold h-14"

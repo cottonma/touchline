@@ -179,7 +179,10 @@ export const playingTime = pgTable('playing_time', {
   totalMinutes: integer('total_minutes').notNull().default(0),
   periodsPlayed: integer('periods_played').notNull().default(0),
   periodsInGoal: integer('periods_in_goal').notNull().default(0),
+  positionsPlayed: text('positions_played'), // JSON array ["LM","CM"]
+  periodsDetail: text('periods_detail'), // JSON [{period,minutes,position,isGk}]
   createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at'),
 });
 
 // ============================================================
@@ -192,6 +195,7 @@ export const matchResults = pgTable('match_results', {
   goalsFor: integer('goals_for').notNull().default(0),
   goalsAgainst: integer('goals_against').notNull().default(0),
   result: text('result'), // "win" | "draw" | "loss"
+  periodScores: text('period_scores'), // JSON: [{period,goalsFor,goalsAgainst}]
   coachNotes: text('coach_notes'),
   motmPlayerId: text('motm_player_id').references(() => players.id),
   createdAt: text('created_at').notNull(),

@@ -413,3 +413,63 @@ Working Plan (restored from snapshot)
 ```
 
 Generate never destroys saved versions. Manual edits never alter saved versions.
+
+
+---
+
+## Addendum: Match Day — Fixture Identity, Scores & Player Minutes (August 2026)
+
+### Decision: Team Names from Fixture Data
+
+Match Day must never hard-code or invent team names. It uses:
+- Club name from `clubs.name` (fetched via active club context)
+- Opponent from `fixtures.opponent`
+- Home/Away from `fixtures.homeAway`
+
+Display format: Home team `[score] – [score]` Away team. Coach's team position determined by `homeAway` field.
+
+### Decision: Period-by-Period Scores
+
+Add `period_scores` column (JSON) to `match_results` table. Format:
+```json
+[{"period": 1, "goalsFor": 1, "goalsAgainst": 0}, {"period": 2, "goalsFor": 2, "goalsAgainst": 1}, ...]
+```
+Final score = sum of period scores (auto-calculated).
+
+### Decision: Actual Minutes from Match Structure
+
+**Current model problem:** `playing_time` stores manually-entered totals. No link to the actual match structure.
+
+**New model:** Match Day saves an "actual match plan" — the same `match_plan_slots` format used by Team Selection but representing what actually happened (after deviations). Actual minutes are then *derived* from these slots, not entered manually.
+
+Flow:
+1. Match Day loads the "Ready" team selection plan as the starting point
+2. Coach makes live adjustments (sub timing changes, position swaps, injuries)
+3. On "Complete Match", the actual slot state is saved
+4. `playing_time` records are recalculated from the actual slots (idempotent — editing recalculates)
+
+### Decision: Player Match Participation
+
+Enhance `playing_time` table to include:
+- `positions_played` (TEXT, JSON array) — e.g. `["LM", "CM"]`
+- `periods_played_detail` (TEXT, JSON) — e.g. `[{"period": 1, "minutes": 15, "position": "LM", "isGk": false}]`
+
+This provides the per-period breakdown needed for detailed stats without a new table.
+
+### Decision: Statistics Derivation
+
+Player season statistics MUST be derived/aggregated from `playing_time` records:
+- Appearances = count of `playing_time` rows where totalMinutes > 0
+- Total minutes = sum of totalMinutes
+- Outfield/GK = sum of respective columns
+- Goals/Assists = count from `goals` table
+- MOTM = count from `match_results` where motmPlayerId matches
+
+Editing a completed match recalculates that fixture's `playing_time` record (upsert, not append).
+
+### Decision: Planned vs Actual
+
+- `match_plan_slots` (from Team Selection) = **planned**
+- `playing_time` records (from Match Day) = **actual**
+- Both coexist. Planned is never overwritten by actual.
+- Statistics always use actual.
