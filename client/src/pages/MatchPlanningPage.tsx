@@ -63,6 +63,7 @@ export function MatchPlanningPage() {
   const [selectedPoolPlayer, setSelectedPoolPlayer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'pitch' | 'time' | 'overview'>('pitch');
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({});
@@ -477,6 +478,8 @@ export function MatchPlanningPage() {
       const timestamp = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
       await api.post(`/match-plans/${selectedFixtureId}/versions`, { name: `Draft — ${timestamp}` });
       fetchVersions();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } catch (err: any) {
       setError(err.message || 'Failed to save');
     } finally {
@@ -540,7 +543,7 @@ export function MatchPlanningPage() {
                   <Wand2 className="h-4 w-4" /> Generate Team
                 </Button>
                 <Button onClick={handleSave} disabled={saving} size="sm">
-                  <Save className="h-4 w-4" /> {saving ? 'Saving...' : 'Save Draft'}
+                  <Save className="h-4 w-4" /> {saving ? 'Saving...' : saved ? 'Saved ✓' : 'Save Draft'}
                 </Button>
                 <Button onClick={handleMarkReady} disabled={saving} variant="default" size="sm">
                   <Check className="h-4 w-4" /> Mark Ready
