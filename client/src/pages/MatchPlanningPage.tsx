@@ -473,6 +473,10 @@ export function MatchPlanningPage() {
         await api.put(`/match-plans/${selectedFixtureId}/status`, { status: 'draft' });
         setPlan(prev => prev ? { ...prev, status: 'draft' } : prev);
       }
+      // Auto-create a version snapshot so this draft is always recoverable
+      const timestamp = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      await api.post(`/match-plans/${selectedFixtureId}/versions`, { name: `Draft — ${timestamp}` });
+      fetchVersions();
     } catch (err: any) {
       setError(err.message || 'Failed to save');
     } finally {
