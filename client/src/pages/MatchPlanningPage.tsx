@@ -9,6 +9,8 @@ import { usePlayers } from '@/hooks/use-players';
 import { PitchView, getFormationSlots, type PitchSlot } from '@/components/match-planning/PitchView';
 import { PlayerPool, type PlayerPoolEntry } from '@/components/match-planning/PlayerPool';
 import { IntelligencePanel, type PlanIntelligence } from '@/components/match-planning/IntelligencePanel';
+import { PlayingTimeTable } from '@/components/match-planning/PlayingTimeTable';
+import { SubstitutionPanel } from '@/components/match-planning/SubstitutionPanel';
 import { api } from '@/lib/api';
 import type { PlayerForSelection } from '@/services/team-selection.service';
 import type { Fixture } from '@/services/fixture.service';
@@ -61,6 +63,7 @@ export function MatchPlanningPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'pitch' | 'time'>('pitch');
 
   const { data: fixtures } = useFixtures({ status: 'upcoming' });
   const { data: players } = usePlayers();
@@ -301,6 +304,58 @@ export function MatchPlanningPage() {
     setAllSlots(prev => prev.filter(s => s.period !== activePeriod));
   }, [activePeriod]);
 
+  /** Add a within-period substitution */
+  const handleAddSub = useCallback((playerOffId: string, playerOnId: string, minute: number, position: string, isGk: boolean) => {
+    setAllSlots(prev => {
+      // Find the off-player's current slot and shorten it
+      const updated = prev.map(s => {
+        if (s.period === activePeriod && s.playerId === playerOffId && s.startMinute === 0 && s.endMinute === periodDuration) {
+          return { ...s, endMinute: minute };
+        }
+        return s;
+      });
+      // Add the on-player's slot starting at the sub minute
+      const newSlot: SlotData = {
+        id: `temp-sub-${Date.now()}`,
+        matchPlanId: plan?.id ?? '',
+        period: activePeriod,
+        playerId: playerOnId,
+        position,
+        isGk,
+        startMinute: minute,
+        endMinute: periodDuration,
+      };
+      return [...updated, newSlot];
+    });
+  }, [activePeriod, periodDuration, plan]);
+
+  /** Edit a substitution minute */
+  const handleEditSubMinute = useCallback((playerOffId: string, playerOnId: string, newMinute: number) => {
+    setAllSlots(prev => prev.map(s => {
+      if (s.period !== activePeriod) return s;
+      // Adjust the off-player's end
+      if (s.playerId === playerOffId && s.startMinute === 0) return { ...s, endMinute: newMinute };
+      // Adjust the on-player's start
+      if (s.playerId === playerOnId && s.startMinute > 0) return { ...s, startMinute: newMinute };
+      return s;
+    }));
+  }, [activePeriod]);
+
+  /** Delete a substitution (restore off-player to full, remove on-player) */
+  const handleDeleteSub = useCallback((playerOffId: string, playerOnId: string) => {
+    setAllSlots(prev => {
+      const updated = prev
+        .filter(s => !(s.period === activePeriod && s.playerId === playerOnId && s.startMinute > 0))
+        .map(s => {
+          if (s.period === activePeriod && s.playerId === playerOffId && s.startMinute === 0) {
+            return { ...s, endMinute: periodDuration };
+          }
+          return s;
+        });
+      return updated;
+    });
+  }, [activePeriod, periodDuration]);
+
   /** Generate plan using engine */
   const handleGenerate = async () => {
     if (!selectedFixtureId) return;
@@ -446,54 +501,106 @@ export function MatchPlanningPage() {
                 </Button>
               </div>
 
-              {/* Main workspace: Pitch + Pool */}
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4">
-                {/* Pitch */}
-                <div>
-                  <PitchView
-                    formation={formation}
-                    slots={pitchSlots}
-                    availablePlayers={availablePlayers}
-                    selectedSlotId={selectedSlotId}
-                    selectedPoolPlayerId={selectedPoolPlayer}
-                    onSlotTap={handleSlotTap}
-                  />
-
-                  {/* Selection hint */}
-                  {(selectedSlotId || selectedPoolPlayer) && (
-                    <div className="mt-2 text-xs text-center text-muted-foreground bg-blue-50 rounded-md p-2">
-                      {selectedPoolPlayer && 'Now tap a position on the pitch to place this player'}
-                      {selectedSlotId && !selectedPoolPlayer && 'Tap another position to swap, or tap a player in the pool to replace'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Sidebar: Pool + Intelligence */}
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader className="p-3 pb-1">
-                      <CardTitle className="text-sm">Available Players</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0">
-                      <PlayerPool
-                        entries={poolEntries}
-                        targetMinutes={targetMinutes}
-                        selectedPlayerId={selectedPoolPlayer}
-                        onPlayerTap={handlePoolPlayerTap}
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="p-3 pb-1">
-                      <CardTitle className="text-sm">Plan Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0">
-                      <IntelligencePanel data={intelligence} />
-                    </CardContent>
-                  </Card>
-                </div>
+              {/* View toggle: Pitch | Playing Time */}
+              <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+                <button
+                  onClick={() => setViewMode('pitch')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === 'pitch' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  Pitch
+                </button>
+                <button
+                  onClick={() => setViewMode('time')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === 'time' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  Playing Time
+                </button>
               </div>
+
+              {viewMode === 'time' ? (
+                /* Playing Time Table view */
+                <Card>
+                  <CardContent className="p-4">
+                    <PlayingTimeTable
+                      slots={allSlots}
+                      players={availablePlayers}
+                      periods={totalPeriods}
+                      periodDuration={periodDuration}
+                      matchDuration={matchDuration}
+                      outfieldSlots={plan?.outfieldSlots ?? 6}
+                    />
+                  </CardContent>
+                </Card>
+              ) : (
+                /* Pitch view workspace */
+                <>
+                  {/* Main workspace: Pitch + Pool */}
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4">
+                    {/* Pitch */}
+                    <div>
+                      <PitchView
+                        formation={formation}
+                        slots={pitchSlots}
+                        availablePlayers={availablePlayers}
+                        selectedSlotId={selectedSlotId}
+                        selectedPoolPlayerId={selectedPoolPlayer}
+                        onSlotTap={handleSlotTap}
+                      />
+
+                      {/* Selection hint */}
+                      {(selectedSlotId || selectedPoolPlayer) && (
+                        <div className="mt-2 text-xs text-center text-muted-foreground bg-blue-50 rounded-md p-2">
+                          {selectedPoolPlayer && 'Now tap a position on the pitch to place this player'}
+                          {selectedSlotId && !selectedPoolPlayer && 'Tap another position to swap, or tap a player in the pool to replace'}
+                        </div>
+                      )}
+
+                      {/* Substitution panel */}
+                      <div className="mt-3">
+                        <SubstitutionPanel
+                          period={activePeriod}
+                          periodDuration={periodDuration}
+                          slots={periodSlots}
+                          availablePlayers={availablePlayers}
+                          onAddSub={handleAddSub}
+                          onEditSubMinute={handleEditSubMinute}
+                          onDeleteSub={handleDeleteSub}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sidebar: Pool + Intelligence */}
+                    <div className="space-y-4">
+                      <Card>
+                        <CardHeader className="p-3 pb-1">
+                          <CardTitle className="text-sm">Available Players</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          <PlayerPool
+                            entries={poolEntries}
+                            targetMinutes={targetMinutes}
+                            selectedPlayerId={selectedPoolPlayer}
+                            onPlayerTap={handlePoolPlayerTap}
+                          />
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="p-3 pb-1">
+                          <CardTitle className="text-sm">Plan Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          <IntelligencePanel data={intelligence} />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           ) : null}
         </>

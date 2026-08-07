@@ -322,3 +322,46 @@ From the coach's perspective, there's no difference between a generated plan and
 - Availability system (feeds player pool)
 - Match Day recording (actuals)
 - Client UI components: `Badge`, `Card`, `Button`, bottom sheets, overlays
+
+
+---
+
+## Addendum: Substitutions & Playing-Time View (August 2026)
+
+### Decision: Within-Quarter Substitutions
+
+**Data model support:** Already exists. `match_plan_slots` rows use `startMinute` and `endMinute` to represent partial periods. A substitution = two rows for the same position in the same period (one ending early, one starting late).
+
+**UX:** SubstitutionPanel component below the pitch in each period:
+- Shows existing planned subs as "8' James → Freddie" with inline slider to adjust minute
+- "Add Sub" button opens a form: select player off, player on, set minute via slider
+- Delete button removes the sub and restores the original player to full period
+- All changes immediately recalculate playing time
+
+### Decision: Playing-Time Table
+
+**Implementation:** Separate view tab ("Pitch | Playing Time") operating on the same `allSlots` data.
+
+**Table format:**
+| Player | Q1 | Q2 | Q3 | Q4 | Outfield | GK | Total | +/- |
+
+- Figures derived from slot `startMinute`/`endMinute` and `isGk` flag
+- GK minutes shown in amber, mixed periods get an asterisk
+- Target minutes calculated from `matchDuration × outfieldSlots / totalPlayers`
+- Difference column colour-coded: green (within 5), amber (over), red (under)
+
+### Decision: Single Source of Truth
+
+Both views (Pitch + Playing Time table) read from the same `allSlots` state array. No duplication. Changes on the pitch immediately reflect in the table, and vice versa.
+
+### Decision: Goalkeeper Minutes
+
+Distinguished at every level:
+- Each slot has `isGk: boolean`
+- `playerMinutes` calculation separates `.outfield` and `.gk`
+- Playing Time table shows separate OF and GK columns
+- Intelligence Panel includes GK time in totals
+
+### Decision: View Switching
+
+Simple toggle: `Pitch | Playing Time` at the top of the workspace area. Both views keep the same period tabs, action buttons, and fixture context. No navigation change, no data reload.
