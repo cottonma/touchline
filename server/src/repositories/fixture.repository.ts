@@ -102,6 +102,22 @@ export class FixtureRepository {
   }
 
   /**
+   * Get all scheduled (not completed/cancelled) fixtures regardless of date.
+   * Used by Match Day to include past unrecorded games.
+   */
+  async findScheduled(seasonId?: string): Promise<FixtureRow[]> {
+    const conditions = [eq(fixtures.status, 'scheduled')];
+    if (seasonId) {
+      conditions.push(eq(fixtures.seasonId, seasonId));
+    }
+    return db
+      .select()
+      .from(fixtures)
+      .where(and(...conditions))
+      .orderBy(fixtures.date);
+  }
+
+  /**
    * Get fixtures by type.
    */
   async findByType(type: string, seasonId?: string): Promise<FixtureRow[]> {

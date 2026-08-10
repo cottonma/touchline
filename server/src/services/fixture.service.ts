@@ -43,6 +43,14 @@ export class FixtureService {
   }
 
   /**
+   * Get all scheduled (not yet completed) fixtures — includes past dates.
+   * Used by Match Day to show games that still need recording.
+   */
+  async getScheduledFixtures(seasonId?: string): Promise<FixtureRow[]> {
+    return fixtureRepository.findScheduled(seasonId);
+  }
+
+  /**
    * Get fixtures by type.
    */
   async getFixturesByType(type: string, seasonId?: string): Promise<FixtureRow[]> {

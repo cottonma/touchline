@@ -63,7 +63,7 @@ export function MatchDayPageV2() {
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: fixtures } = useFixtures({ status: 'upcoming' });
+  const { data: fixtures } = useFixtures({ status: 'scheduled' });
   const { data: completedFixtures } = useFixtures({ status: 'completed' });
   const { data: players } = usePlayers();
 

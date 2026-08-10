@@ -31,6 +31,9 @@ export class FixtureController {
       data = await fixtureService.getUpcomingFixtures(seasonId);
     } else if (status === 'completed') {
       data = await fixtureService.getCompletedFixtures(seasonId);
+    } else if (status === 'scheduled') {
+      // All scheduled fixtures (past + future) — for Match Day
+      data = await fixtureService.getScheduledFixtures(seasonId);
     } else if (type) {
       data = await fixtureService.getFixturesByType(type, seasonId);
     } else {
