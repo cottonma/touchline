@@ -87,7 +87,12 @@ export class DashboardService {
     const upcoming = allFixtures
       .filter((f) => f.status === 'scheduled' && f.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date));
-    const nextFix = upcoming[0] ?? null;
+    // Also find recent past fixtures that haven't been completed (need recording)
+    const unrecoredPast = allFixtures
+      .filter((f) => f.status === 'scheduled' && f.date < today && f.type !== 'training')
+      .sort((a, b) => b.date.localeCompare(a.date));
+    // Priority: unrecorded past game first (needs attention), then next upcoming
+    const nextFix = unrecoredPast[0] ?? upcoming[0] ?? null;
 
     let nextFixture: DashboardData['nextFixture'] = null;
     if (nextFix) {
