@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Ban, Trash2, MapPin, Clock, Target } from 'lucide-react';
+import { ArrowLeft, Edit, Ban, Trash2, MapPin, Clock, Target, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFixture, useCancelFixture, useDeleteFixture } from '@/hooks/use-fixtures';
 import { FixtureForm } from '@/components/fixtures/FixtureForm';
+import { api } from '@/lib/api';
+import { usePlayers } from '@/hooks/use-players';
 
 const TYPE_LABELS: Record<string, string> = {
   match: 'Match',
@@ -38,6 +40,17 @@ export function FixtureDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [matchRecord, setMatchRecord] = useState<any>(null);
+  const { data: players } = usePlayers();
+
+  // Fetch match result for completed fixtures
+  useEffect(() => {
+    if (fixture?.status === 'completed' && id) {
+      api.get<any>(`/fixtures/${id}/match-day`).then(res => {
+        setMatchRecord(res?.data ?? res ?? null);
+      }).catch(() => {});
+    }
+  }, [fixture?.status, id]);
 
   if (isLoading) {
     return (
@@ -205,7 +218,7 @@ export function FixtureDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Quick actions */}
+        {/* Quick actions — scheduled matches */}
         {fixture.status === 'scheduled' && isMatch && (
           <Card>
             <CardHeader>
@@ -233,6 +246,93 @@ export function FixtureDetailPage() {
               >
                 Match Day
               </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Match Review — completed matches */}
+        {fixture.status === 'completed' && isMatch && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Match Review</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => navigate(`/team-selection?fixture=${fixture.id}`)}
+              >
+                View Team Selection
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => navigate(`/match-day?fixture=${fixture.id}`)}
+              >
+                View Match Record
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Match Result — completed matches */}
+        {fixture.status === 'completed' && isMatch && matchRecord && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-yellow-500" />
+                Match Result
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Score */}
+              <div className="text-center">
+                <p className="text-2xl font-bold">
+                  {matchRecord.result?.goalsFor ?? '?'} – {matchRecord.result?.goalsAgainst ?? '?'}
+                </p>
+                <p className="text-sm text-muted-foreground capitalize">
+                  {matchRecord.result?.result ?? ''}
+                </p>
+              </div>
+
+              {/* Goals */}
+              {matchRecord.goals && matchRecord.goals.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Goals</h4>
+                  <div className="space-y-1">
+                    {matchRecord.goals.map((g: any, i: number) => {
+                      const scorer = players?.find(p => p.id === g.scorerId);
+                      const assist = players?.find(p => p.id === (g.assistId || g.assistPlayerId));
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span>⚽</span>
+                          <span className="font-medium">{scorer ? `${scorer.firstName} ${scorer.lastName}` : 'Unknown'}</span>
+                          {assist && <span className="text-muted-foreground text-xs">(assist: {assist.firstName})</span>}
+                          {g.period && <span className="text-muted-foreground text-xs">Q{g.period}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Coach notes */}
+              {matchRecord.result?.coachNotes && (
+                <div>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Coach Notes</h4>
+                  <p className="text-sm">{matchRecord.result.coachNotes}</p>
+                </div>
+              )}
+
+              {/* MOTM */}
+              {matchRecord.result?.motmPlayerId && (
+                <div>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Man of the Match</h4>
+                  <p className="text-sm font-medium">
+                    🏆 {players?.find(p => p.id === matchRecord.result.motmPlayerId)?.firstName ?? ''} {players?.find(p => p.id === matchRecord.result.motmPlayerId)?.lastName ?? ''}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
