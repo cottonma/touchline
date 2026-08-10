@@ -29,12 +29,24 @@ type FilterTab = 'all' | 'upcoming' | 'completed';
 export function FixturesPage() {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('upcoming');
+  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   const statusFilter = activeTab === 'all' ? undefined : activeTab;
   const { data: fixtures, isLoading, error } = useFixtures(
     statusFilter ? { status: statusFilter } : undefined
   );
+
+  // Filter by search query (opponent name, date, location)
+  const filteredFixtures = fixtures?.filter(f => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (f.opponent?.toLowerCase().includes(q)) ||
+      (f.location?.toLowerCase().includes(q)) ||
+      (f.date?.includes(q))
+    );
+  });
 
   if (isLoading) {
     return (
@@ -73,7 +85,7 @@ export function FixturesPage() {
         {(['upcoming', 'completed', 'all'] as FilterTab[]).map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => { setActiveTab(tab); setSearchQuery(''); }}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               activeTab === tab
                 ? 'bg-background text-foreground shadow-sm'
@@ -84,6 +96,17 @@ export function FixturesPage() {
           </button>
         ))}
       </div>
+
+      {/* Search — shown on completed and all tabs */}
+      {(activeTab === 'completed' || activeTab === 'all') && (
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by opponent, venue or date..."
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      )}
 
       {/* Add Fixture Form */}
       {showForm && (
@@ -96,11 +119,11 @@ export function FixturesPage() {
       )}
 
       {/* Fixture List */}
-      {!fixtures || fixtures.length === 0 ? (
+      {!filteredFixtures || filteredFixtures.length === 0 ? (
         <EmptyState tab={activeTab} onAddFixture={() => setShowForm(true)} />
       ) : (
         <div className="grid gap-3">
-          {fixtures.map((fixture) => (
+          {filteredFixtures.map((fixture) => (
             <FixtureCard
               key={fixture.id}
               fixture={fixture}
