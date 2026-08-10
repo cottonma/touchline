@@ -240,3 +240,30 @@ router.post('/:fixtureId/complete', asyncHandler(async (req, res) => {
 
   res.json({ data: result.data });
 }));
+
+// Update formation for a specific period
+router.put('/:fixtureId/formation/:period', asyncHandler(async (req, res) => {
+  const fixtureId = req.params.fixtureId as string;
+  const period = Number(req.params.period);
+  const { formation } = req.body;
+
+  if (!formation || !period) {
+    res.status(400).json({ error: 'formation and period are required' });
+    return;
+  }
+
+  const [plan] = await db.select().from(matchPlans).where(eq(matchPlans.fixtureId, fixtureId)).limit(1);
+  if (!plan) { res.status(404).json({ error: 'No plan found' }); return; }
+
+  // Parse existing period formations or create fresh
+  const periodFormations = plan.periodFormations ? JSON.parse(plan.periodFormations) : {};
+  periodFormations[String(period)] = formation;
+
+  await db.update(matchPlans).set({
+    periodFormations: JSON.stringify(periodFormations),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(matchPlans.id, plan.id));
+
+  const [updated] = await db.select().from(matchPlans).where(eq(matchPlans.id, plan.id)).limit(1);
+  res.json({ data: updated });
+}));

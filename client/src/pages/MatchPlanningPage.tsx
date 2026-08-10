@@ -109,10 +109,23 @@ export function MatchPlanningPage() {
       .finally(() => setLoading(false));
   }, [selectedFixtureId]);
 
-  const formation = plan?.formation ?? '2-3-1';
+  const defaultFormation = plan?.formation ?? '2-3-1';
+  const [periodFormations, setPeriodFormations] = useState<Record<string, string>>({});
   const periodDuration = Number(plan?.periodDurationMinutes ?? 12);
   const totalPeriods = plan?.periods ?? 4;
   const matchDuration = plan?.matchDurationMinutes ?? 48;
+
+  // Get formation for the active period
+  const formation = periodFormations[String(activePeriod)] ?? defaultFormation;
+
+  // Load period formations from plan
+  useEffect(() => {
+    if (plan?.periodFormations) {
+      try { setPeriodFormations(JSON.parse(plan.periodFormations)); } catch { setPeriodFormations({}); }
+    } else {
+      setPeriodFormations({});
+    }
+  }, [plan?.periodFormations]);
 
   // Current period's slots
   const periodSlots = useMemo(() => allSlots.filter(s => s.period === activePeriod), [allSlots, activePeriod]);
@@ -382,6 +395,16 @@ export function MatchPlanningPage() {
     setAllSlots(prev => prev.filter(s => s.period !== activePeriod));
   }, [activePeriod]);
 
+  /** Change formation for the active period */
+  const handleFormationChange = useCallback(async (newFormation: string) => {
+    setPeriodFormations(prev => ({ ...prev, [String(activePeriod)]: newFormation }));
+    if (selectedFixtureId) {
+      try {
+        await api.put(`/match-plans/${selectedFixtureId}/formation/${activePeriod}`, { formation: newFormation });
+      } catch {}
+    }
+  }, [activePeriod, selectedFixtureId]);
+
   /** Add a within-period substitution */
   const handleAddSub = useCallback((playerOffId: string, playerOnId: string, minute: number, position: string, isGk: boolean) => {
     setAllSlots(prev => {
@@ -574,8 +597,8 @@ export function MatchPlanningPage() {
                 })}
               </div>
 
-              {/* Period actions */}
-              <div className="flex gap-2">
+              {/* Period actions + formation selector */}
+              <div className="flex items-center gap-2 flex-wrap">
                 {activePeriod > 1 && (
                   <Button variant="ghost" size="sm" onClick={() => handleCopyPeriod(activePeriod - 1)}>
                     <Copy className="h-3.5 w-3.5" /> Copy Q{activePeriod - 1}
@@ -584,6 +607,22 @@ export function MatchPlanningPage() {
                 <Button variant="ghost" size="sm" onClick={handleClearPeriod}>
                   <Trash2 className="h-3.5 w-3.5" /> Clear
                 </Button>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-[10px] text-muted-foreground">Formation:</span>
+                  <select
+                    value={formation}
+                    onChange={(e) => handleFormationChange(e.target.value)}
+                    className="text-xs border rounded px-2 py-1 bg-background h-7"
+                  >
+                    {(plan?.outfieldSlots === 4 ? ['1-2-1', '2-1-1', '1-1-2', '2-2'] :
+                      plan?.outfieldSlots === 6 ? ['2-3-1', '1-4-1', '1-3-2', '3-2-1', '2-2-2'] :
+                      plan?.outfieldSlots === 8 ? ['2-3-3', '3-2-3', '2-4-2', '3-3-2'] :
+                      plan?.outfieldSlots === 10 ? ['4-3-3', '4-4-2', '3-5-2', '4-2-3-1'] :
+                      ['2-3-1']).map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* View toggle: Pitch | Playing Time | Overview */}
@@ -668,7 +707,8 @@ export function MatchPlanningPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:gap-2">
                     {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => {
                       const pSlots = allSlots.filter(s => s.period === period);
-                      const formSlots = getFormationSlots(formation);
+                      const pFormation = periodFormations[String(period)] ?? defaultFormation;
+                      const formSlots = getFormationSlots(pFormation);
                       const pPitchSlots: PitchSlot[] = formSlots.map(fs => {
                         const posSlots = pSlots.filter(s => {
                           if (fs.isGk && s.isGk) return true;
@@ -705,7 +745,7 @@ export function MatchPlanningPage() {
                       return (
                         <div key={period} className="space-y-1">
                           <div className="flex items-center justify-between px-1">
-                            <span className="text-xs font-bold">Q{period}</span>
+                            <span className="text-xs font-bold">Q{period} <span className="font-normal text-muted-foreground">{pFormation}</span></span>
                             <button
                               onClick={() => { setActivePeriod(period); setViewMode('pitch'); }}
                               className="text-[10px] text-primary hover:underline print:hidden"
@@ -714,7 +754,7 @@ export function MatchPlanningPage() {
                             </button>
                           </div>
                           <PitchView
-                            formation={formation}
+                            formation={pFormation}
                             slots={pPitchSlots}
                             availablePlayers={availablePlayers}
                             periodDuration={periodDuration}

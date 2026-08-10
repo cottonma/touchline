@@ -399,7 +399,8 @@ export const matchPlans = pgTable('match_plans', {
   fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
   clubId: text('club_id').references(() => clubs.id),
   status: text('status').notNull().default('draft'),
-  formation: text('formation'),
+  formation: text('formation'),             // default formation for the match
+  periodFormations: text('period_formations'), // JSON: {"1":"2-3-1","2":"1-4-1",...}
   periods: integer('periods').notNull(),
   periodDurationMinutes: text('period_duration_minutes').notNull(),
   matchDurationMinutes: integer('match_duration_minutes').notNull(),

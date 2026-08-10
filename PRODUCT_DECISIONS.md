@@ -473,3 +473,27 @@ Editing a completed match recalculates that fixture's `playing_time` record (ups
 - `playing_time` records (from Match Day) = **actual**
 - Both coexist. Planned is never overwritten by actual.
 - Statistics always use actual.
+
+
+---
+
+## Addendum: Quarter-by-Quarter Formation Changes (August 2026)
+
+### Decision: Formation is per-period, not per-match
+
+**Data model:** `match_plans.period_formations` — JSON field storing `{"1":"2-3-1","2":"1-4-1","3":"1-3-2","4":"2-3-1"}`. The existing `formation` field remains as the default (initial value for all periods).
+
+**Behaviour:**
+- New plan: all periods inherit the default formation from Settings
+- Coach can change any individual period's formation via a dropdown
+- Changing Q2 does NOT affect Q1, Q3, Q4
+- Existing player assignments are preserved when formation changes (players remain, positions may need manual adjustment)
+- Position warnings continue to apply
+
+**API:** `PUT /match-plans/:fixtureId/formation/:period` — updates one period's formation
+
+**Full Match View:** Shows the formation label on each period (e.g. "Q1 2-3-1", "Q2 1-4-1")
+
+**Saved Plans:** `period_formations` is part of the plan and saved/restored with versions
+
+**Generated Team:** Uses the default formation unless the coach has already set period-specific overrides
