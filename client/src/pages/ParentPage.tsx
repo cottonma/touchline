@@ -50,6 +50,7 @@ export function ParentPage() {
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({});
   const [motmVotes, setMotmVotes] = useState<Record<string, string>>({});
   const [matchResultsData, setMatchResultsData] = useState<Record<string, any>>({});
+  const [fixtureAvailability, setFixtureAvailability] = useState<Record<string, string[]>>({}); // fixtureId -> available player IDs
   const [isLoading, setIsLoading] = useState(true);
   const [savingAvailability, setSavingAvailability] = useState<string | null>(null);
   const [savingMotm, setSavingMotm] = useState(false);
@@ -110,6 +111,18 @@ export function ParentPage() {
           } catch {}
         }
         setMatchResultsData(resultsMap);
+
+        // Fetch availability for MOTM-eligible fixtures (today's scheduled)
+        const avByFixture: Record<string, string[]> = {};
+        const motmFixtures = votableFixtures.filter((f: any) => f.status === 'scheduled' && f.date <= todayStr);
+        for (const fixture of motmFixtures) {
+          try {
+            const avRes = await api.get<any>(`/fixtures/${fixture.id}/availability`);
+            const avData = Array.isArray(avRes) ? avRes : (avRes?.data ?? []);
+            avByFixture[fixture.id] = avData.filter((a: any) => a.status === 'available').map((a: any) => a.playerId);
+          } catch {}
+        }
+        setFixtureAvailability(avByFixture);
       }
     } catch (err) {
       console.error('Failed to load parent data', err);
@@ -160,13 +173,13 @@ export function ParentPage() {
   const upcomingFixtures = fixtures.filter((f) => f.status === 'scheduled' && f.type !== 'training');
   const completedFixtures = fixtures.filter((f) => f.status === 'completed' && f.type !== 'training');
 
-  // MOTM voting: allow on today's scheduled matches + completed matches
+  // MOTM voting: only on today's scheduled matches (not yet completed)
+  // Once completed, voting closes — result is in the match record
   const today = new Date().toISOString().split('T')[0];
   const motmEligibleFixtures = fixtures.filter((f) =>
-    f.type !== 'training' && (
-      f.status === 'completed' ||
-      (f.status === 'scheduled' && f.date <= today)
-    )
+    f.type !== 'training' &&
+    f.status === 'scheduled' &&
+    f.date <= today
   );
 
   // Players eligible for MOTM vote (all active players except own child)
@@ -317,9 +330,15 @@ export function ParentPage() {
                       )}
                     </div>
 
-                    {/* Player voting list */}
+                    {/* Player voting list — only available players */}
                     <div className="grid grid-cols-2 gap-2">
-                      {eligiblePlayers.map((player) => (
+                      {eligiblePlayers
+                        .filter(p => {
+                          const availIds = fixtureAvailability[fixture.id];
+                          if (!availIds || availIds.length === 0) return true; // fallback: show all if no data
+                          return availIds.includes(p.id);
+                        })
+                        .map((player) => (
                         <button
                           key={player.id}
                           onClick={() => handleMotmVote(fixture.id, player.id)}
@@ -354,10 +373,12 @@ export function ParentPage() {
           <CardContent>
             <div className="space-y-3">
               {completedFixtures.map((fixture) => {
-                const result = matchResultsData[fixture.id];
-                const matchGoals = result?.goals ?? result?.data?.goals ?? [];
-                const goalsFor = result?.goalsFor ?? result?.data?.goalsFor ?? '?';
-                const goalsAgainst = result?.goalsAgainst ?? result?.data?.goalsAgainst ?? '?';
+                const resultData = matchResultsData[fixture.id];
+                // The match-day API returns { data: { result, goals, playingTime } } or { result, goals }
+                const matchResult = resultData?.data?.result ?? resultData?.result ?? resultData?.data ?? resultData;
+                const matchGoals = resultData?.data?.goals ?? resultData?.goals ?? [];
+                const goalsFor = matchResult?.goalsFor ?? '?';
+                const goalsAgainst = matchResult?.goalsAgainst ?? '?';
 
                 return (
                   <div key={fixture.id} className="border rounded-lg p-4 space-y-2">
