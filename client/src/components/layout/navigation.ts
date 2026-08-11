@@ -45,6 +45,7 @@ export const navItems: NavItem[] = [
   { label: 'Team Selection', path: '/team-selection', icon: UserCheck, primary: true },
   { label: 'Match Day', path: '/match-day', icon: PlayCircle, primary: true },
   { label: 'Scout Report', path: '/scout-report', icon: Eye, primary: false },
+  { label: 'Team Observations', path: '/scout-observations', icon: Eye, primary: false },
   { label: 'Statistics', path: '/stats', icon: BarChart3, primary: false },
   { label: 'Development', path: '/development', icon: Target, primary: false },
   { label: 'Training', path: '/training', icon: Dumbbell, primary: false },

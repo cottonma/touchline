@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trophy, Check, Plus, Trash2 } from 'lucide-react';
+import { Trophy, Check, Plus, Trash2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -344,6 +344,15 @@ export function MatchDayPageV2() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Scout Observations link */}
+          <Button
+            variant="outline"
+            className="w-full justify-start h-10 text-xs"
+            onClick={() => window.location.href = `/scout-observations?fixture=${selectedFixtureId}`}
+          >
+            <Eye className="h-4 w-4" /> Scout Observations — Record observations for this match
+          </Button>
 
           {/* MOTM Votes — show parent votes tally */}
           {motmTally && motmTally.totalVotes > 0 && (

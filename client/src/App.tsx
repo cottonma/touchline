@@ -22,6 +22,7 @@ import { AiCoachPage } from '@/pages/AiCoachPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ManageUsersPage } from '@/pages/ManageUsersPage';
 import { ScoutReportPage } from '@/pages/ScoutReportPage';
+import { ScoutObservationsPage } from '@/pages/ScoutObservationsPage';
 import { SetupWizardPage } from '@/pages/SetupWizardPage';
 import { ParentPage } from '@/pages/ParentPage';
 
@@ -71,6 +72,7 @@ function App() {
                 <Route path="team-selection" element={<MatchPlanningPage />} />
                 <Route path="match-day" element={<MatchDayPageV2 />} />
                 <Route path="scout-report" element={<ScoutReportPage />} />
+                <Route path="scout-observations" element={<ScoutObservationsPage />} />
                 <Route path="stats" element={<StatsPage />} />
                 <Route path="development" element={<DevelopmentPage />} />
                 <Route path="training" element={<TrainingPage />} />
