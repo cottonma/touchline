@@ -437,3 +437,22 @@ export const matchPlanVersions = pgTable('match_plan_versions', {
   generatedBy: text('generated_by'),
   createdAt: text('created_at').notNull(),
 });
+
+// ============================================================
+// SCOUT OBSERVATIONS - Per-player and team-level match observations
+// ============================================================
+
+export const scoutObservations = pgTable('scout_observations', {
+  id: text('id').primaryKey(),
+  fixtureId: text('fixture_id').notNull().references(() => fixtures.id),
+  playerId: text('player_id').references(() => players.id), // null = team observation
+  scoutId: text('scout_id').references(() => users.id),
+  period: integer('period'),
+  matchMinute: integer('match_minute'),
+  developmentArea: text('development_area').notNull(), // physical|technical|mental|teamwork
+  observationType: text('observation_type').notNull().default('general'), // strength|development|general
+  observation: text('observation').notNull(),
+  followUp: text('follow_up'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});

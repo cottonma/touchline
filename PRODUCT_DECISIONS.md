@@ -497,3 +497,51 @@ Editing a completed match recalculates that fixture's `playing_time` record (ups
 **Saved Plans:** `period_formations` is part of the plan and saved/restored with versions
 
 **Generated Team:** Uses the default formation unless the coach has already set period-specific overrides
+
+
+---
+
+## Addendum: Scout — Our Team Observations (August 2026)
+
+### Decision: Separate observations table from opposition scouting
+
+`scout_observations` is a new first-class table for per-player and team-level match observations. Separate from:
+- `scout_reports` (opposition scouting — formation, key players, threats)
+- `development_observations` (linked to development goals)
+
+### Data Model
+
+```
+scout_observations
+  id, fixture_id, player_id (nullable), scout_id, period, match_minute,
+  development_area (physical|technical|mental|teamwork),
+  observation_type (strength|development|general),
+  observation (text), follow_up (text), timestamps
+```
+
+- `player_id = null` → team-level observation
+- `player_id = X` → individual player observation
+- Linked to fixture permanently — completing/editing a match never deletes observations
+
+### API
+
+- `GET /api/scout-observations?fixtureId=&playerId=` — list with filters
+- `POST /api/scout-observations` — quick add (designed for live match use)
+- `PUT /api/scout-observations/:id` — edit observation or add follow-up
+- `DELETE /api/scout-observations/:id` — remove
+
+### Integration Points
+
+- **Scout page:** New "Our Team" tab for recording observations during matches
+- **Match Day:** "Scout Observations" section showing all observations for the fixture
+- **Player Detail:** Historical observations timeline
+- **Development:** Observations as evidence for goal decisions
+
+### Principles
+
+- No scores, ratings, rankings, or leaderboards
+- Descriptive, evidence-based language
+- Four development areas: Physical, Technical, Mental, Teamwork
+- Three observation types: Strength, Development Opportunity, General
+- Fast entry — optimised for sideline use during matches
+- Historical integrity — observations persist permanently
