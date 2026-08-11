@@ -267,3 +267,31 @@ router.put('/:fixtureId/formation/:period', asyncHandler(async (req, res) => {
   const [updated] = await db.select().from(matchPlans).where(eq(matchPlans.id, plan.id)).limit(1);
   res.json({ data: updated });
 }));
+
+// ─── MOTM VOTE TALLY (Coach view) ───────────────────────────────────────────
+
+import { motmVotes, players } from '../db/schema.js';
+
+// Get MOTM vote tally for a fixture
+router.get('/:fixtureId/motm-votes', asyncHandler(async (req, res) => {
+  const fixtureId = req.params.fixtureId as string;
+
+  const votes = await db.select().from(motmVotes).where(eq(motmVotes.fixtureId, fixtureId));
+  const allPlayers = await db.select({ id: players.id, firstName: players.firstName, lastName: players.lastName }).from(players);
+
+  // Tally votes per player
+  const tally = new Map<string, number>();
+  for (const vote of votes) {
+    tally.set(vote.playerId, (tally.get(vote.playerId) ?? 0) + 1);
+  }
+
+  // Sort by votes descending
+  const results = [...tally.entries()]
+    .map(([playerId, voteCount]) => {
+      const player = allPlayers.find(p => p.id === playerId);
+      return { playerId, playerName: player ? `${player.firstName} ${player.lastName}` : 'Unknown', votes: voteCount };
+    })
+    .sort((a, b) => b.votes - a.votes);
+
+  res.json({ data: { totalVotes: votes.length, results } });
+}));

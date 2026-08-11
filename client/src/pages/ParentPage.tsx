@@ -372,7 +372,7 @@ export function ParentPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {completedFixtures.map((fixture) => {
+              {completedFixtures.slice(0, 5).map((fixture) => {
                 const resultData = matchResultsData[fixture.id];
                 // The match-day API returns { data: { result, goals, playingTime } } or { result, goals }
                 const matchResult = resultData?.data?.result ?? resultData?.result ?? resultData?.data ?? resultData;

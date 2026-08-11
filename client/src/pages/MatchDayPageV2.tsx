@@ -62,6 +62,7 @@ export function MatchDayPageV2() {
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [motmTally, setMotmTally] = useState<{ totalVotes: number; results: { playerId: string; playerName: string; votes: number }[] } | null>(null);
 
   const { data: fixtures } = useFixtures({ status: 'scheduled' });
   const { data: completedFixtures } = useFixtures({ status: 'completed' });
@@ -105,6 +106,10 @@ export function MatchDayPageV2() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
+    // Fetch MOTM votes
+    api.get<{ data: { totalVotes: number; results: any[] } }>(`/match-plans/${selectedFixtureId}/motm-votes`)
+      .then(res => setMotmTally(res.data))
+      .catch(() => setMotmTally(null));
   }, [selectedFixtureId]);
 
   const formation = plan?.formation ?? '2-3-1';
@@ -339,6 +344,35 @@ export function MatchDayPageV2() {
               </div>
             </CardContent>
           </Card>
+
+          {/* MOTM Votes — show parent votes tally */}
+          {motmTally && motmTally.totalVotes > 0 && (
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-yellow-500" />
+                  Parent MOTM Votes ({motmTally.totalVotes})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="space-y-1.5">
+                  {motmTally.results.map((entry, i) => (
+                    <div key={entry.playerId} className="flex items-center gap-2">
+                      {i === 0 && <span className="text-base">🏆</span>}
+                      {i === 1 && <span className="text-base">🥈</span>}
+                      {i === 2 && <span className="text-base">🥉</span>}
+                      {i > 2 && <span className="w-6" />}
+                      <span className={`text-sm flex-1 ${i === 0 ? 'font-bold' : ''}`}>{entry.playerName}</span>
+                      <span className="text-sm font-bold tabular-nums">{entry.votes}</span>
+                      <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${(entry.votes / motmTally.totalVotes) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Complete Match */}
           <Button className="w-full h-12 text-base" onClick={handleComplete} disabled={submitting}>
