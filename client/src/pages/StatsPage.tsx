@@ -145,8 +145,8 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
               <th className="pb-2 font-medium text-right" title="Goalkeeper minutes">GK</th>
               <th className="pb-2 font-medium text-right" title="Total minutes (outfield + GK)">Total</th>
               <th className="pb-2 font-medium text-right" title="Average minutes per appearance">Avg/App</th>
-              <th className="pb-2 font-medium text-right" title="Minutes played per goal scored">Min/Goal</th>
-              <th className="pb-2 font-medium text-right" title="Minutes played per assist">Min/Assist</th>
+              <th className="pb-2 font-medium text-right" title="Outfield minutes played per goal scored (GK time excluded)">Min/Goal</th>
+              <th className="pb-2 font-medium text-right" title="Outfield minutes played per assist (GK time excluded)">Min/Assist</th>
               <th className="pb-2 font-medium text-center" title="Percentage of minutes played in goal">GK %</th>
               <th className="pb-2 font-medium" title="Distinct positions played this season">Positions</th>
             </tr>
@@ -184,7 +184,7 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
         <p><span className="font-medium">G+A</span> = goal involvements (goals + assists). <span className="font-medium">{csHeader}</span> = {periodWord.toLowerCase()}s played in full with no goal conceded (GK and outfield count).</p>
-        <p><span className="font-medium">Min/Goal</span> &amp; <span className="font-medium">Min/Assist</span> = minutes played per goal / assist. <span className="font-medium">Avg/App</span> = average minutes per appearance. <span className="font-medium">GK %</span> = share of minutes in goal. <span className="font-medium">Positions</span> = distinct positions played this season.</p>
+        <p><span className="font-medium">Min/Goal</span> &amp; <span className="font-medium">Min/Assist</span> = outfield minutes per goal / assist (time in goal excluded). <span className="font-medium">Avg/App</span> = average minutes per appearance. <span className="font-medium">GK %</span> = share of minutes in goal. <span className="font-medium">Positions</span> = distinct positions played this season.</p>
       </div>
     </div>
   );

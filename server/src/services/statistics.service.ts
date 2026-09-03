@@ -192,8 +192,9 @@ export class StatisticsService {
         totalMinutes,
         // Derived metrics
         goalInvolvements: goalCount + assistCount,
-        minutesPerGoal: goalCount > 0 ? Math.round(totalMinutes / goalCount) : null,
-        minutesPerAssist: assistCount > 0 ? Math.round(totalMinutes / assistCount) : null,
+        // Rate based on OUTFIELD minutes only — a player can't score/assist while in goal
+        minutesPerGoal: goalCount > 0 ? Math.round(outfieldMinutes / goalCount) : null,
+        minutesPerAssist: assistCount > 0 ? Math.round(outfieldMinutes / assistCount) : null,
         avgMinutesPerAppearance: appearances > 0 ? Math.round(totalMinutes / appearances) : 0,
         positionsPlayed,
         positionVariety: positionsPlayed.length,
