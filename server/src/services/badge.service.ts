@@ -143,15 +143,15 @@ export class BadgeService {
     // Assists — first assist + playmaker (5 total)
     const assisters = new Set<string>();
     for (const g of fixtureGoals) {
-      if (g.assistPlayerId) assisters.add(g.assistPlayerId);
+      if (g.assistId) assisters.add(g.assistId);
     }
 
     for (const assisterId of assisters) {
-      const allAssists = await db.select({ id: goals.id }).from(goals).where(eq(goals.assistPlayerId, assisterId));
+      const allAssists = await db.select({ id: goals.id }).from(goals).where(eq(goals.assistId, assisterId));
       const totalAssists = allAssists.length;
 
       // First Assist
-      const fixtureAssists = fixtureGoals.filter(g => g.assistPlayerId === assisterId).length;
+      const fixtureAssists = fixtureGoals.filter(g => g.assistId === assisterId).length;
       if (totalAssists <= fixtureAssists) {
         const b = AUTO_BADGES.first_assist;
         await this.awardBadge({ playerId: assisterId, clubId, badgeType: 'first_assist', title: b.title, emoji: b.emoji, description: b.description, fixtureId });
