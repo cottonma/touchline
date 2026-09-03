@@ -126,15 +126,30 @@ export function MatchDayPageV2() {
       isGkVolunteer: p.isGkVolunteer,
     })), [players]);
 
-  // Final score
+  // Final score (internal: goalsFor = our goals, goalsAgainst = opponent)
   const totalGoalsFor = periodScores.reduce((s, p) => s + p.goalsFor, 0);
   const totalGoalsAgainst = periodScores.reduce((s, p) => s + p.goalsAgainst, 0);
 
-  // Handle score change for a period
-  const handlePeriodScore = (period: number, team: 'for' | 'against', value: number) => {
+  // Are we the away side for this fixture?
+  const isAway = selectedFixture?.homeAway === 'away';
+
+  // Scores are entered as HOME – AWAY. We convert to our internal
+  // goalsFor/goalsAgainst based on whether we're home or away.
+  const handleHomeAwayScore = (period: number, side: 'home' | 'away', value: number) => {
+    // Which internal field does this side map to?
+    // If we're home: home=goalsFor, away=goalsAgainst.
+    // If we're away: home=goalsAgainst, away=goalsFor.
+    const field: 'goalsFor' | 'goalsAgainst' =
+      (side === 'home') === !isAway ? 'goalsFor' : 'goalsAgainst';
     setPeriodScores(prev => prev.map(ps =>
-      ps.period === period ? { ...ps, [team === 'for' ? 'goalsFor' : 'goalsAgainst']: value } : ps
+      ps.period === period ? { ...ps, [field]: value } : ps
     ));
+  };
+
+  // Read a period's score for a given side (home/away) from internal fields
+  const periodSideValue = (ps: PeriodScore, side: 'home' | 'away'): number => {
+    if (!isAway) return side === 'home' ? ps.goalsFor : ps.goalsAgainst;
+    return side === 'home' ? ps.goalsAgainst : ps.goalsFor;
   };
 
   // Complete match
@@ -215,12 +230,12 @@ export function MatchDayPageV2() {
             </CardContent>
           </Card>
 
-          {/* Period scores — 2 columns. Left input is always OUR goals, right is always the opponent's. */}
+          {/* Period scores — entered as HOME – AWAY. The app works out which is ours from the fixture. */}
           <Card>
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs">Period Scores</CardTitle>
+              <CardTitle className="text-xs">Period Scores (Home – Away)</CardTitle>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Enter your team's goals on the left, the opposition's on the right — this stays the same whether you're home or away.
+                Enter the score as home team – away team. You're the {isAway ? 'away' : 'home'} side for this fixture, so your goals go {isAway ? 'on the right' : 'on the left'}.
               </p>
             </CardHeader>
             <CardContent className="p-3 pt-0">
@@ -229,22 +244,26 @@ export function MatchDayPageV2() {
                   <div key={ps.period} className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold w-6">Q{ps.period}</span>
                     <div className="flex flex-col items-center">
-                      <span className="text-[8px] font-medium text-emerald-600 leading-none mb-0.5">{clubName}</span>
+                      <span className={`text-[8px] font-medium leading-none mb-0.5 max-w-[3rem] truncate ${!isAway ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                        {!isAway ? clubName : (selectedFixture?.opponent ?? 'Opp')}
+                      </span>
                       <Input
                         type="number" min={0} max={20}
-                        value={ps.goalsFor || ''}
-                        onChange={(e) => handlePeriodScore(ps.period, 'for', Number(e.target.value) || 0)}
+                        value={periodSideValue(ps, 'home') || ''}
+                        onChange={(e) => handleHomeAwayScore(ps.period, 'home', Number(e.target.value) || 0)}
                         className="w-10 h-7 text-center text-xs p-0"
                         placeholder="0"
                       />
                     </div>
                     <span className="text-[10px] text-muted-foreground mt-3">–</span>
                     <div className="flex flex-col items-center">
-                      <span className="text-[8px] font-medium text-muted-foreground leading-none mb-0.5 max-w-[3rem] truncate">{selectedFixture?.opponent ?? 'Opp'}</span>
+                      <span className={`text-[8px] font-medium leading-none mb-0.5 max-w-[3rem] truncate ${isAway ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                        {isAway ? clubName : (selectedFixture?.opponent ?? 'Opp')}
+                      </span>
                       <Input
                         type="number" min={0} max={20}
-                        value={ps.goalsAgainst || ''}
-                        onChange={(e) => handlePeriodScore(ps.period, 'against', Number(e.target.value) || 0)}
+                        value={periodSideValue(ps, 'away') || ''}
+                        onChange={(e) => handleHomeAwayScore(ps.period, 'away', Number(e.target.value) || 0)}
                         className="w-10 h-7 text-center text-xs p-0"
                         placeholder="0"
                       />

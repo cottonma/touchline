@@ -566,3 +566,21 @@ All report calculations filter by the set of fixtures that currently exist and a
 Previously reports counted `playing_time` rows regardless of whether the parent fixture still existed. Deleting a fixture (e.g. a gala) left a player showing "2/3 matches" when it should read "2/2". Filtering by existing completed fixtures keeps all counts consistent with what actually happened.
 
 Historical cleanup: a one-off script removed orphaned records left by fixtures deleted before cascade-delete was implemented. Cascade-delete on the fixture repository now prevents new orphans.
+
+---
+
+## Match Scores Entered as Home – Away
+
+Coaches enter match scores in natural football order: **home team score – away team score**. The app derives which score is ours from the fixture's `homeAway` setting.
+
+### Decision
+
+- Internally, `match_results.goalsFor` = our team's goals and `goalsAgainst` = the opponent's goals. All reports and stats rely on this.
+- At the input layer (Match Day), the two score boxes are labelled Home / Away using the real team names. On save, the app maps them:
+  - Home fixture: home box → `goalsFor`, away box → `goalsAgainst`
+  - Away fixture: home box → `goalsAgainst`, away box → `goalsFor`
+- The coach's own team is highlighted (green) on whichever side matches the fixture, so it's always clear.
+
+### Rationale
+
+Previously the score inputs were fixed as "us – them", which was confusing for away games where scores are conventionally read home-first. Entering in home–away order matches how scores are reported elsewhere and removes the risk of recording an away win as a loss.
