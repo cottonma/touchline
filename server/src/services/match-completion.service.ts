@@ -1,7 +1,8 @@
 import { db } from '../db/index.js';
-import { matchPlans, matchPlanSlots, playingTime, matchResults, goals, fixtures } from '../db/schema.js';
+import { matchPlans, matchPlanSlots, playingTime, matchResults, goals, fixtures, seasons } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { badgeService } from './badge.service.js';
 
 /**
  * Match Completion Service
@@ -175,6 +176,19 @@ export class MatchCompletionService {
 
     // 8. Update match plan status
     await db.update(matchPlans).set({ status: 'completed', updatedAt: now }).where(eq(matchPlans.id, plan.id));
+
+    // 9. Award automatic badges (milestones). Resolve the club from the fixture's season.
+    try {
+      const [fixture] = await db.select().from(fixtures).where(eq(fixtures.id, fixtureId)).limit(1);
+      let clubId: string | undefined = plan.clubId ?? undefined;
+      if (!clubId && fixture) {
+        const [season] = await db.select().from(seasons).where(eq(seasons.id, fixture.seasonId)).limit(1);
+        clubId = season?.clubId;
+      }
+      await badgeService.checkAutoBadges(fixtureId, clubId);
+    } catch (err) {
+      console.error('[completeMatch] badge check failed', err);
+    }
 
     return {
       success: true,

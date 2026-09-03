@@ -8,6 +8,8 @@ interface Badge {
   title: string;
   emoji: string;
   description: string | null;
+  tier: string;
+  points: number;
   awardedBy: string | null;
   fixtureId: string | null;
   createdAt: string;
@@ -18,6 +20,8 @@ interface BadgeTemplate {
   title: string;
   emoji: string;
   description: string;
+  tier: string;
+  points: number;
 }
 
 export function usePlayerBadges(playerId: string | undefined) {
@@ -40,10 +44,12 @@ export function useBadgeTemplates() {
 export function useAwardBadge() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { playerId: string; badgeType: string; title: string; emoji: string; description?: string }) =>
+    mutationFn: (data: { playerId: string; badgeType: string }) =>
       api.post('/badges/award', data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['badges', variables.playerId] });
     },
   });
 }
+
+export type { Badge, BadgeTemplate };

@@ -25,14 +25,21 @@ router.get('/templates', asyncHandler(async (_req, res) => {
   res.json({ data: COACH_BADGE_TEMPLATES });
 }));
 
-// Coach awards a badge
+// Coach awards a badge (character/effort — once-only per player)
 router.post('/award', asyncHandler(async (req, res) => {
-  const { playerId, badgeType, title, emoji, description } = req.body;
+  const { playerId, badgeType } = req.body;
   const clubId = getClubId(req);
   const userId = req.user?.userId;
 
-  if (!playerId || !badgeType || !title || !emoji) {
-    res.status(400).json({ error: 'playerId, badgeType, title, and emoji are required' });
+  if (!playerId || !badgeType) {
+    res.status(400).json({ error: 'playerId and badgeType are required' });
+    return;
+  }
+
+  // Look up the template so points/tier/title come from the server, not the client
+  const template = COACH_BADGE_TEMPLATES.find((t) => t.type === badgeType);
+  if (!template) {
+    res.status(400).json({ error: 'Unknown badge type' });
     return;
   }
 
@@ -40,10 +47,14 @@ router.post('/award', asyncHandler(async (req, res) => {
     playerId,
     clubId,
     badgeType,
-    title,
-    emoji,
-    description,
+    title: template.title,
+    emoji: template.emoji,
+    description: template.description,
+    tier: template.tier,
+    points: template.points,
     awardedBy: userId,
+    // Coach character badges are once-only (a player "graduates")
+    repeatable: false,
   });
 
   res.status(201).json({ data: { awarded } });

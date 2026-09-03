@@ -382,10 +382,13 @@ export const badges = pgTable('badges', {
   id: text('id').primaryKey(),
   playerId: text('player_id').notNull().references(() => players.id),
   clubId: text('club_id').references(() => clubs.id),
+  seasonId: text('season_id').references(() => seasons.id), // season the badge belongs to (for season-scoped totals)
   badgeType: text('badge_type').notNull(),
   title: text('title').notNull(),
   emoji: text('emoji').notNull().default('⭐'),
   description: text('description'),
+  tier: text('tier').notNull().default('bronze'), // bronze | silver | gold | platinum
+  points: integer('points').notNull().default(0),
   awardedBy: text('awarded_by'),
   fixtureId: text('fixture_id').references(() => fixtures.id),
   createdAt: text('created_at').notNull(),

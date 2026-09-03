@@ -18,6 +18,15 @@ const STATUS_COLORS: Record<string, 'secondary' | 'warning' | 'success'> = { wor
 const CATEGORY_LABELS: Record<string, string> = { technical: 'Technical', tactical: 'Tactical', physical: 'Physical', psychological: 'Psychological' };
 const POSITION_LABELS: Record<string, string> = { GK: 'GK', CB: 'CB', LB: 'LB', RB: 'RB', CM: 'CM', LM: 'LM', RM: 'RM', CF: 'CF', all: 'All' };
 
+// Badge tier styling for the trophy cabinet
+const TIER_STYLES: Record<string, { ring: string; bg: string; label: string; chip: string }> = {
+  bronze: { ring: 'ring-amber-700/40', bg: 'bg-amber-50', label: 'Bronze', chip: 'bg-amber-100 text-amber-800' },
+  silver: { ring: 'ring-slate-400/50', bg: 'bg-slate-50', label: 'Silver', chip: 'bg-slate-200 text-slate-700' },
+  gold: { ring: 'ring-yellow-500/50', bg: 'bg-yellow-50', label: 'Gold', chip: 'bg-yellow-100 text-yellow-800' },
+  platinum: { ring: 'ring-cyan-400/50', bg: 'bg-cyan-50', label: 'Platinum', chip: 'bg-cyan-100 text-cyan-800' },
+};
+function tierStyle(tier: string) { return TIER_STYLES[tier] ?? TIER_STYLES.bronze; }
+
 /**
  * Player Development page.
  * Select a player → view/add goals → track progress with observations.
@@ -183,23 +192,39 @@ export function DevelopmentPage() {
       {selectedPlayerId && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              Trophy Cabinet
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Trophy Cabinet
+              </CardTitle>
+              {/* Personal points total (not a squad ranking) */}
+              <div className="text-right">
+                <p className="text-2xl font-bold leading-none text-yellow-600">
+                  {(playerBadges ?? []).reduce((sum, b) => sum + (b.points ?? 0), 0)}
+                </p>
+                <p className="text-[10px] text-muted-foreground">trophy points</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {playerBadges && playerBadges.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {playerBadges.map((badge) => (
-                  <div key={badge.id} className="flex flex-col items-center text-center p-3 rounded-lg bg-muted/50 border">
-                    <span className="text-3xl mb-1">{badge.emoji}</span>
-                    <span className="text-xs font-medium">{badge.title}</span>
-                    <span className="text-[10px] text-muted-foreground mt-0.5">
-                      {new Date(badge.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </span>
-                  </div>
-                ))}
+                {[...playerBadges]
+                  .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
+                  .map((badge) => {
+                    const t = tierStyle(badge.tier);
+                    return (
+                      <div key={badge.id} className={`relative flex flex-col items-center text-center p-3 rounded-lg border ring-1 ${t.ring} ${t.bg}`}>
+                        <span className={`absolute top-1 right-1 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${t.chip}`}>{t.label}</span>
+                        <span className="text-3xl mb-1">{badge.emoji}</span>
+                        <span className="text-xs font-medium leading-tight">{badge.title}</span>
+                        <span className="text-[10px] font-semibold text-yellow-600 mt-0.5">+{badge.points} pts</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(badge.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                    );
+                  })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">
@@ -207,25 +232,36 @@ export function DevelopmentPage() {
               </p>
             )}
 
-            {/* Coach: award a badge */}
+            {/* Coach: award a character/effort badge (once-only per player) */}
             {!isParent && badgeTemplates && (
               <div className="mt-4 pt-4 border-t">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Award a badge:</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Award an effort / character badge (once each):</p>
                 <div className="flex flex-wrap gap-2">
-                  {badgeTemplates.map((tmpl) => (
-                    <button
-                      key={tmpl.type}
-                      onClick={() => {
-                        if (!selectedPlayerId) return;
-                        awardBadge.mutate({ playerId: selectedPlayerId, badgeType: tmpl.type, title: tmpl.title, emoji: tmpl.emoji, description: tmpl.description });
-                      }}
-                      disabled={awardBadge.isPending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent active:scale-95 transition-all"
-                    >
-                      <span>{tmpl.emoji}</span>
-                      <span>{tmpl.title}</span>
-                    </button>
-                  ))}
+                  {badgeTemplates.map((tmpl) => {
+                    const alreadyEarned = (playerBadges ?? []).some((b) => b.badgeType === tmpl.type);
+                    const t = tierStyle(tmpl.tier);
+                    return (
+                      <button
+                        key={tmpl.type}
+                        onClick={() => {
+                          if (!selectedPlayerId || alreadyEarned) return;
+                          awardBadge.mutate({ playerId: selectedPlayerId, badgeType: tmpl.type });
+                        }}
+                        disabled={awardBadge.isPending || alreadyEarned}
+                        title={alreadyEarned ? 'Already earned — they\'ve got this one!' : tmpl.description}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs transition-all ${
+                          alreadyEarned
+                            ? 'opacity-40 cursor-not-allowed line-through'
+                            : `hover:bg-accent active:scale-95 ${t.chip}`
+                        }`}
+                      >
+                        <span>{tmpl.emoji}</span>
+                        <span>{tmpl.title}</span>
+                        <span className="opacity-70">+{tmpl.points}</span>
+                        {alreadyEarned && <span>✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

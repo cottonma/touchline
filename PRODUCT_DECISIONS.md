@@ -661,3 +661,38 @@ The sort selector on Statistics is horizontally scrollable on mobile and drives 
 ### Rationale
 
 Coaches use the app pitchside on their phones. Wide tables forced horizontal scrolling and truncated headers. Cards and bars present the same information in a vertical, thumb-friendly layout, while desktop users keep the dense table for quick scanning.
+
+---
+
+## Trophy Cabinet: Tiered Badges & Personal Points
+
+Expanded the badge system into a tiered, points-based Trophy Cabinet with a personal score per player.
+
+### Principles
+
+- **Personal score, not a ranking.** Each player has a "Trophy Points" total (sum of their badge points) shown on their own cabinet. There is deliberately NO squad leaderboard — this keeps it motivating without ranking children against each other.
+- **Goals are not over-rewarded.** Goal/assist milestones carry modest points; coach-awarded character/effort badges are worth as much or more, so a quieter or less prolific player can still build a strong cabinet through attitude.
+- **Season-scoped milestones.** Goals, assists and clean-sheet tiers count within the active season and reset each season. Appearance milestones are career-long.
+- **Coach character badges are once-only.** A player "graduates" a character badge (e.g. Encourager) once they've shown they do it naturally — it can't be awarded repeatedly.
+
+### Tiers
+
+Bronze / Silver / Gold / Platinum, each with a colour and points band, shown as a chip on every badge.
+
+### Automatic badges (app-awarded on match completion)
+
+- Appearances: First Match, 10, 25, 50 (career)
+- Goals (season): First Goal, 5, 10, 15, 20, plus Hat-trick (repeatable)
+- Assists (season): First Assist, 5, 10, 15, 20, plus Playmaker (repeatable)
+- Clean sheets (season): Clean Sheet (repeatable), 5, 10
+- Man of the Match (repeatable), Development Star
+
+`checkAutoBadges` is now called at the end of match completion (previously it was never invoked).
+
+### Coach-awarded character/effort badges (once each)
+
+Team Captain (shouts instructions/organises), Encourager, Great Support Play, Never Gives Up, Great Listener, Brave Performance, Most Improved, Skills Star, Team Spirit, Training Star.
+
+### Data model
+
+Added `tier`, `points`, and `season_id` to the badges table. Award points/tier come from server-side definitions (the client only sends the badge type), so values can't be tampered with.
