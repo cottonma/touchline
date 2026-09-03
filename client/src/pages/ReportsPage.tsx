@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { usePlayingTimeReport, useAttendanceReport, useSeasonResultsReport, useGkRotationReport, useDevelopmentReport } from '@/hooks/use-reports';
+import { formatScoreline } from '@/lib/utils';
 
 type ReportType = 'playing-time' | 'attendance' | 'season-results' | 'gk-rotation' | 'development';
 
@@ -179,7 +180,7 @@ function SeasonResultsView() {
               <div key={i} className="flex items-center gap-3 text-sm">
                 <span className="w-20 text-muted-foreground">{new Date(r.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 <span className="flex-1">{r.opponent}</span>
-                <span className="font-bold">{r.goalsFor}-{r.goalsAgainst}</span>
+                <span className="font-bold">{formatScoreline(r.goalsFor, r.goalsAgainst, r.homeAway)}</span>
                 <Badge variant={r.result === 'win' ? 'success' : r.result === 'loss' ? 'destructive' : 'secondary'} className="text-xs w-6 justify-center">
                   {r.result?.[0]?.toUpperCase()}
                 </Badge>

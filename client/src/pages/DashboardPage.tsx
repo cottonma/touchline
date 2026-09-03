@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useDashboard } from '@/hooks/use-dashboard';
 import { useAuth } from '@/lib/auth';
 import { useEffect } from 'react';
+import { formatScoreline } from '@/lib/utils';
 
 /**
  * Dashboard - the landing page for Touchline.
@@ -207,7 +208,7 @@ export function DashboardPage() {
                     {new Date(r.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                   </span>
                   <span className="flex-1 truncate">{r.opponent ?? 'Unknown'}</span>
-                  <span className="font-bold">{r.goalsFor}-{r.goalsAgainst}</span>
+                  <span className="font-bold">{formatScoreline(r.goalsFor, r.goalsAgainst, r.homeAway)}</span>
                   <Badge
                     variant={r.result === 'win' ? 'success' : r.result === 'loss' ? 'destructive' : 'secondary'}
                     className="text-xs w-6 justify-center"

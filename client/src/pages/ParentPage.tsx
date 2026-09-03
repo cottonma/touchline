@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatScoreline } from '@/lib/utils';
 
 interface Player {
   id: string;
@@ -390,7 +391,7 @@ export function ParentPage() {
                         </p>
                       </div>
                       <div className="text-2xl font-bold tabular-nums">
-                        {goalsFor} – {goalsAgainst}
+                        {formatScoreline(goalsFor, goalsAgainst, fixture.homeAway)}
                       </div>
                     </div>
 

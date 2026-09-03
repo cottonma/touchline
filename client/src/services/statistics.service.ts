@@ -29,6 +29,7 @@ export interface MatchStats {
   fixtureId: string;
   date: string;
   opponent: string | null;
+  homeAway: string | null;
   goalsFor: number;
   goalsAgainst: number;
   result: string | null;

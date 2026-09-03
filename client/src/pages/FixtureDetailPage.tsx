@@ -9,6 +9,7 @@ import { useFixture, useCancelFixture, useDeleteFixture } from '@/hooks/use-fixt
 import { FixtureForm } from '@/components/fixtures/FixtureForm';
 import { api } from '@/lib/api';
 import { usePlayers } from '@/hooks/use-players';
+import { formatScoreline } from '@/lib/utils';
 
 interface GoalEntry {
   scorerId: string;
@@ -331,8 +332,13 @@ export function FixtureDetailPage() {
             <CardContent className="space-y-4">
               {/* Score */}
               <div className="text-center">
+                <p className="text-xs text-muted-foreground mb-0.5">
+                  {fixture.homeAway === 'away' ? fixture.opponent : 'Our Team'}
+                  {' vs '}
+                  {fixture.homeAway === 'away' ? 'Our Team' : (fixture.opponent ?? 'Opponent')}
+                </p>
                 <p className="text-2xl font-bold">
-                  {matchRecord.result?.goalsFor ?? '?'} – {matchRecord.result?.goalsAgainst ?? '?'}
+                  {formatScoreline(matchRecord.result?.goalsFor ?? '?', matchRecord.result?.goalsAgainst ?? '?', fixture.homeAway)}
                 </p>
                 <p className="text-sm text-muted-foreground capitalize">
                   {matchRecord.result?.result ?? ''}

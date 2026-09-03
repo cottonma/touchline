@@ -89,6 +89,7 @@ export interface SeasonResultsReport {
   results: {
     date: string;
     opponent: string | null;
+    homeAway: string | null;
     goalsFor: number;
     goalsAgainst: number;
     result: string | null;
@@ -302,6 +303,7 @@ export class ReportsService {
       return {
         date: f.date,
         opponent: f.opponent,
+        homeAway: f.homeAway,
         goalsFor: r?.goalsFor ?? 0,
         goalsAgainst: r?.goalsAgainst ?? 0,
         result: r?.result ?? null,

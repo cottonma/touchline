@@ -25,7 +25,7 @@ export interface SeasonResultsReport {
   title: string;
   generatedAt: string;
   summary: { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number; goalDifference: number; cleanSheets: number; winPercentage: number };
-  results: { date: string; opponent: string | null; goalsFor: number; goalsAgainst: number; result: string | null }[];
+  results: { date: string; opponent: string | null; homeAway: string | null; goalsFor: number; goalsAgainst: number; result: string | null }[];
 }
 
 export interface GkRotationReport {

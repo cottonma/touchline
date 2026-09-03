@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { usePlayerStats, useTeamStats, useMatchResults } from '@/hooks/use-statistics';
 import type { PlayerSeasonStats } from '@/services/statistics.service';
+import { formatScoreline } from '@/lib/utils';
 
 type Tab = 'team' | 'players' | 'results';
 
@@ -168,7 +169,7 @@ function PlayerStatsView({ stats }: { stats: PlayerSeasonStats[] }) {
   );
 }
 
-function ResultsView({ results }: { results: { fixtureId: string; date: string; opponent: string | null; goalsFor: number; goalsAgainst: number; result: string | null }[] }) {
+function ResultsView({ results }: { results: { fixtureId: string; date: string; opponent: string | null; homeAway?: string | null; goalsFor: number; goalsAgainst: number; result: string | null }[] }) {
   if (results.length === 0) {
     return <EmptyStats message="No results recorded yet." />;
   }
@@ -182,7 +183,7 @@ function ResultsView({ results }: { results: { fixtureId: string; date: string; 
           </div>
           <div className="flex-1 font-medium text-sm">{r.opponent ?? 'Unknown'}</div>
           <div className="flex items-center gap-2">
-            <span className="font-bold">{r.goalsFor}-{r.goalsAgainst}</span>
+            <span className="font-bold">{formatScoreline(r.goalsFor, r.goalsAgainst, r.homeAway)}</span>
             <Badge variant={r.result === 'win' ? 'success' : r.result === 'loss' ? 'destructive' : 'secondary'} className="text-xs">
               {r.result === 'win' ? 'W' : r.result === 'loss' ? 'L' : 'D'}
             </Badge>

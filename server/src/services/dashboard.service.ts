@@ -40,6 +40,7 @@ export interface DashboardData {
     fixtureId: string;
     date: string;
     opponent: string | null;
+    homeAway: string | null;
     goalsFor: number;
     goalsAgainst: number;
     result: string | null;
@@ -151,6 +152,7 @@ export class DashboardService {
         fixtureId: f.id,
         date: f.date,
         opponent: f.opponent,
+        homeAway: f.homeAway,
         goalsFor: result?.goalsFor ?? 0,
         goalsAgainst: result?.goalsAgainst ?? 0,
         result: result?.result ?? null,
