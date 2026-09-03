@@ -119,6 +119,7 @@ async function autoSetup() {
   try { await sql.unsafe(`ALTER TABLE players ADD COLUMN IF NOT EXISTS tertiary_position TEXT`); } catch {}
   try { await sql.unsafe(`ALTER TABLE users ADD COLUMN IF NOT EXISTS player_id TEXT REFERENCES players(id)`); } catch {}
   try { await sql.unsafe(`ALTER TABLE players ADD COLUMN IF NOT EXISTS club_id TEXT REFERENCES clubs(id)`); } catch {}
+  try { await sql.unsafe(`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS public_availability_token TEXT`); } catch {}
 
   // Create motm_votes table for parent MOTM voting
   await sql.unsafe(`

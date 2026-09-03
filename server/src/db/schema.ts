@@ -53,6 +53,7 @@ export const clubs = pgTable('clubs', {
   name: text('name').notNull(),
   teamName: text('team_name'),
   badgeUrl: text('badge_url'),
+  publicAvailabilityToken: text('public_availability_token'),
   homeGround: text('home_ground'),
   homeGroundAddress: text('home_ground_address'),
   directions: text('directions'),

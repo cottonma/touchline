@@ -25,6 +25,7 @@ import { ScoutReportPage } from '@/pages/ScoutReportPage';
 import { ScoutObservationsPage } from '@/pages/ScoutObservationsPage';
 import { SetupWizardPage } from '@/pages/SetupWizardPage';
 import { ParentPage } from '@/pages/ParentPage';
+import { PublicAvailabilityPage } from '@/pages/PublicAvailabilityPage';
 
 /**
  * Route guard — redirects to /login if not authenticated.
@@ -56,8 +57,9 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public route */}
+            {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/a/:token" element={<PublicAvailabilityPage />} />
 
             {/* Protected routes */}
             <Route element={<ProtectedRoute />}>

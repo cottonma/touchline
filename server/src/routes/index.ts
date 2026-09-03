@@ -21,6 +21,7 @@ import { parentRoutes } from './parent.routes.js';
 import { badgeRoutes } from './badge.routes.js';
 import { matchPlanRoutes } from './match-plan.routes.js';
 import { scoutObservationRoutes } from './scout-observation.routes.js';
+import { publicRoutes } from './public.routes.js';
 
 /**
  * Register all API routes.
@@ -29,6 +30,10 @@ import { scoutObservationRoutes } from './scout-observation.routes.js';
 export function setupRoutes(app: Express): void {
   // Auth routes (login is public, me/register use their own middleware)
   app.use('/api/auth', authRoutes);
+
+  // Public (no-login) routes — parent availability via shareable token.
+  // Registered BEFORE the auth middleware so they stay publicly accessible.
+  app.use('/api/public', publicRoutes);
 
   // Apply auth middleware to all routes below this point
   app.use('/api', authMiddleware);
