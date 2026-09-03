@@ -79,13 +79,43 @@ function PlayingTimeReportView() {
   const { data, isLoading } = usePlayingTimeReport();
   if (isLoading || !data) return <Loading />;
 
+  const maxTotal = Math.max(1, ...data.players.map((p) => p.totalMinutes));
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>{data.title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
+        {/* MOBILE: bar rows per player */}
+        <div className="space-y-3 md:hidden">
+          {data.players.map((p) => (
+            <div key={p.name} className="space-y-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-medium text-sm truncate">{p.name}</span>
+                <span className="text-sm shrink-0">
+                  <span className="font-semibold">{p.totalMinutes}m</span>
+                  <span className="text-xs text-muted-foreground"> · {p.appearances} app</span>
+                </span>
+              </div>
+              {/* Stacked bar: outfield + GK */}
+              <div className="flex h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-primary" style={{ width: `${(p.outfieldMinutes / maxTotal) * 100}%` }} />
+                <div className="h-full bg-amber-500" style={{ width: `${(p.gkMinutes / maxTotal) * 100}%` }} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {p.outfieldMinutes}m outfield{p.gkMinutes > 0 ? ` · ${p.gkMinutes}m GK` : ''}
+              </p>
+            </div>
+          ))}
+          <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" /> Outfield</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" /> GK</span>
+          </div>
+        </div>
+
+        {/* DESKTOP: table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-muted-foreground">
               <th className="pb-2">Player</th>
@@ -107,6 +137,7 @@ function PlayingTimeReportView() {
             </tbody>
           </table>
         </div>
+
         <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
           Total match minutes: {data.totals.totalMatchMinutes} · Average per player: {data.totals.averagePerPlayer}
         </div>
@@ -123,7 +154,19 @@ function AttendanceReportView() {
     <Card>
       <CardHeader><CardTitle>{data.title}</CardTitle></CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
+        {/* MOBILE: card per player with progress bars */}
+        <div className="space-y-3 md:hidden">
+          {data.players.map((p) => (
+            <div key={p.name} className="rounded-lg border p-3 space-y-2">
+              <p className="font-medium text-sm">{p.name}</p>
+              <AttendanceBar label="Matches" done={p.matchesPlayed} total={p.matchesAvailable} pct={p.matchAttendanceRate} color="bg-primary" />
+              <AttendanceBar label="Training" done={p.trainingAttended} total={p.trainingSessions} pct={p.trainingAttendanceRate} color="bg-emerald-500" />
+            </div>
+          ))}
+        </div>
+
+        {/* DESKTOP: table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b text-left text-muted-foreground">
               <th className="pb-2">Player</th>
@@ -147,6 +190,20 @@ function AttendanceReportView() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AttendanceBar({ label, done, total, pct, color }: { label: string; done: number; total: number; pct: number; color: string }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span><span className="font-medium">{done}/{total}</span> <span className="text-muted-foreground">({pct}%)</span></span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -204,26 +261,43 @@ function GkRotationView() {
         {data.volunteers.length === 0 ? (
           <p className="text-sm text-muted-foreground">No GK duty recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b text-left text-muted-foreground">
-                <th className="pb-2">Volunteer</th>
-                <th className="pb-2 text-right">Matches</th>
-                <th className="pb-2 text-right">Periods</th>
-                <th className="pb-2 text-right">Minutes</th>
-              </tr></thead>
-              <tbody>
-                {data.volunteers.map((v) => (
-                  <tr key={v.name} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{v.name}</td>
-                    <td className="py-2 text-right">{v.matchesInGoal}</td>
-                    <td className="py-2 text-right">{v.periodsInGoal}</td>
-                    <td className="py-2 text-right">{v.totalGkMinutes}m</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* MOBILE: card per volunteer */}
+            <div className="space-y-2 md:hidden">
+              {data.volunteers.map((v) => (
+                <div key={v.name} className="rounded-lg border p-3 flex items-center justify-between">
+                  <span className="font-medium text-sm">{v.name}</span>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="text-center"><p className="font-semibold">{v.totalGkMinutes}m</p><p className="text-[10px] text-muted-foreground">minutes</p></div>
+                    <div className="text-center"><p className="font-semibold">{v.periodsInGoal}</p><p className="text-[10px] text-muted-foreground">periods</p></div>
+                    <div className="text-center"><p className="font-semibold">{v.matchesInGoal}</p><p className="text-[10px] text-muted-foreground">matches</p></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP: table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2">Volunteer</th>
+                  <th className="pb-2 text-right">Matches</th>
+                  <th className="pb-2 text-right">Periods</th>
+                  <th className="pb-2 text-right">Minutes</th>
+                </tr></thead>
+                <tbody>
+                  {data.volunteers.map((v) => (
+                    <tr key={v.name} className="border-b last:border-0">
+                      <td className="py-2 font-medium">{v.name}</td>
+                      <td className="py-2 text-right">{v.matchesInGoal}</td>
+                      <td className="py-2 text-right">{v.periodsInGoal}</td>
+                      <td className="py-2 text-right">{v.totalGkMinutes}m</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

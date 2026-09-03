@@ -639,3 +639,25 @@ New columns:
 - **Positions** — distinct positions played this season (development, not ranking)
 
 Rate metrics use minutes-per-event rather than events-per-minute to keep numbers readable and avoid turning children into per-minute scoring ratios. No rankings or grades are introduced; these are informational for the coach.
+
+---
+
+## Mobile-First Statistics & Reports
+
+The Statistics player table and the Playing Time / Attendance / GK Rotation reports had too many columns to read on a phone. Redesigned to be mobile-first while keeping the full detail on desktop.
+
+### Approach
+
+Responsive dual layout — the same data, presented differently by screen size (Tailwind `md:` breakpoint):
+
+- **Statistics (Players):** on mobile, each player is an expandable card showing name, a one-line summary (G · A · apps · mins) and a headline number that reflects the current sort. Tapping expands to a clean vertical key/value list of every stat — no horizontal scrolling. On desktop, the full wide table remains.
+- **Playing Time report:** mobile shows a stacked bar per player (outfield vs GK minutes) with a legend; desktop keeps the table.
+- **Attendance report:** mobile shows a card per player with match and training progress bars; desktop keeps the table.
+- **GK Rotation report:** mobile shows a compact card per volunteer; desktop keeps the table.
+- **Season Results / Development:** already card-based, unchanged.
+
+The sort selector on Statistics is horizontally scrollable on mobile and drives the headline number shown on each card.
+
+### Rationale
+
+Coaches use the app pitchside on their phones. Wide tables forced horizontal scrolling and truncated headers. Cards and bars present the same information in a vertical, thumb-friendly layout, while desktop users keep the dense table for quick scanning.

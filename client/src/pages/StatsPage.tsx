@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trophy, TrendingUp } from 'lucide-react';
+import { Trophy, TrendingUp, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { usePlayerStats, useTeamStats, useMatchResults } from '@/hooks/use-statistics';
@@ -110,16 +110,18 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
     return bVal - aVal;
   });
 
+  const sortOptions: (keyof PlayerSeasonStats)[] = ['goals', 'assists', 'goalInvolvements', 'appearances', 'cleanSheets', 'motmAwards', 'totalMinutes'];
+
   return (
     <div className="space-y-4">
-      {/* Sort selector */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Sort by:</span>
-        {(['goals', 'assists', 'goalInvolvements', 'appearances', 'cleanSheets', 'motmAwards', 'totalMinutes'] as (keyof PlayerSeasonStats)[]).map((key) => (
+      {/* Sort selector — scrollable on mobile */}
+      <div className="flex items-center gap-2 text-sm overflow-x-auto pb-1 -mx-1 px-1">
+        <span className="text-muted-foreground shrink-0">Sort by:</span>
+        {sortOptions.map((key) => (
           <button
             key={key}
             onClick={() => setSortBy(key)}
-            className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+            className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
               sortBy === key ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent'
             }`}
           >
@@ -128,8 +130,15 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
         ))}
       </div>
 
-      {/* Stats table */}
-      <div className="overflow-x-auto">
+      {/* MOBILE: expandable player cards */}
+      <div className="space-y-2 md:hidden">
+        {sorted.map((s, idx) => (
+          <PlayerStatCard key={s.playerId} s={s} rank={idx} sortBy={sortBy} periodWord={periodWord} />
+        ))}
+      </div>
+
+      {/* DESKTOP: full table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-muted-foreground">
@@ -182,10 +191,75 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
           </tbody>
         </table>
       </div>
+
       <div className="text-xs text-muted-foreground space-y-1">
         <p><span className="font-medium">G+A</span> = goal involvements (goals + assists). <span className="font-medium">{csHeader}</span> = {periodWord.toLowerCase()}s played in full with no goal conceded (GK and outfield count).</p>
         <p><span className="font-medium">Min/Goal</span> &amp; <span className="font-medium">Min/Assist</span> = outfield minutes per goal / assist (time in goal excluded). <span className="font-medium">Avg/App</span> = average outfield minutes per appearance (GK time excluded). <span className="font-medium">GK %</span> = share of minutes in goal. <span className="font-medium">Positions</span> = distinct positions played this season.</p>
       </div>
+    </div>
+  );
+}
+
+/** Mobile: a tappable player card showing headline stats, expanding to full detail. */
+function PlayerStatCard({ s, rank, sortBy, periodWord }: { s: PlayerSeasonStats; rank: number; sortBy: keyof PlayerSeasonStats; periodWord: string }) {
+  const [open, setOpen] = useState(false);
+
+  const headlineLabel = formatSortLabel(sortBy);
+  const headlineValue = (() => {
+    const v = s[sortBy];
+    if (typeof v === 'number') return v;
+    return (v as any) ?? '-';
+  })();
+
+  const detail: { label: string; value: string | number }[] = [
+    { label: 'Appearances', value: s.appearances },
+    { label: 'Goals', value: s.goals },
+    { label: 'Assists', value: s.assists },
+    { label: 'Goal involvements', value: s.goalInvolvements },
+    { label: `CS ${periodWord.toLowerCase()}s`, value: s.cleanSheets },
+    { label: 'MOTM', value: s.motmAwards },
+    { label: `${periodWord}s played`, value: s.periodsPlayed },
+    { label: 'Outfield minutes', value: s.outfieldMinutes },
+    { label: 'GK minutes', value: s.goalkeeperMinutes },
+    { label: 'Total minutes', value: s.totalMinutes },
+    { label: 'Avg mins / appearance', value: s.avgMinutesPerAppearance },
+    { label: 'Mins per goal', value: s.minutesPerGoal != null ? `${s.minutesPerGoal}'` : '-' },
+    { label: 'Mins per assist', value: s.minutesPerAssist != null ? `${s.minutesPerAssist}'` : '-' },
+    { label: 'GK share', value: s.gkSharePct > 0 ? `${s.gkSharePct}%` : '-' },
+    { label: 'Positions', value: s.positionsPlayed.length > 0 ? s.positionsPlayed.join(', ') : '-' },
+  ];
+
+  return (
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 p-3 text-left">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            {rank === 0 && sortBy !== 'appearances' && sortBy !== 'totalMinutes' && (
+              <Trophy className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            )}
+            <span className="font-semibold truncate">{s.playerName}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {s.goals}G · {s.assists}A · {s.appearances} app · {s.totalMinutes} min
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-lg font-bold leading-none">{headlineValue}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{headlineLabel}</p>
+        </div>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="border-t px-3 py-2 grid grid-cols-1 gap-y-1.5">
+          {detail.map((d) => (
+            <div key={d.label} className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{d.label}</span>
+              <span className="font-medium text-right ml-3">{d.value === 0 ? '-' : d.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
