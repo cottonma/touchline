@@ -545,3 +545,24 @@ scout_observations
 - Three observation types: Strength, Development Opportunity, General
 - Fast entry — optimised for sideline use during matches
 - Historical integrity — observations persist permanently
+
+---
+
+## Reports Reflect Deleted Fixtures
+
+When a fixture is deleted, its related records (playing time, goals, results, MOTM votes, etc.) are cascade-deleted from the database. Reports must never count data from fixtures that no longer exist.
+
+### Decision
+
+All report calculations filter by the set of fixtures that currently exist and are marked completed (`completedFixtureIds`). This applies to:
+
+- **Playing Time Summary** — minutes and appearances
+- **Attendance Report** — matches played / matches available
+- **Player Report Card** — appearances, goals, assists, MOTM, clean sheets, minutes
+- **GK Rotation Report** — GK minutes, matches/periods in goal
+
+### Rationale
+
+Previously reports counted `playing_time` rows regardless of whether the parent fixture still existed. Deleting a fixture (e.g. a gala) left a player showing "2/3 matches" when it should read "2/2". Filtering by existing completed fixtures keeps all counts consistent with what actually happened.
+
+Historical cleanup: a one-off script removed orphaned records left by fixtures deleted before cascade-delete was implemented. Cascade-delete on the fixture repository now prevents new orphans.
