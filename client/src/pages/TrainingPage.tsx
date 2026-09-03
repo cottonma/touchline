@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Dumbbell, Trash2, Clock, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,16 @@ export function TrainingPage() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const { data: sessions, isLoading } = useTrainingSessions();
   const deleteTraining = useDeleteTraining();
+
+  // Show sessions most-recent first. Prefer the session date; fall back to
+  // when it was created for sessions without a date set.
+  const sortedSessions = useMemo(() => {
+    return [...(sessions ?? [])].sort((a, b) => {
+      const aKey = a.date ?? a.createdAt ?? '';
+      const bKey = b.date ?? b.createdAt ?? '';
+      return bKey.localeCompare(aKey);
+    });
+  }, [sessions]);
 
   const editingSession = editingSessionId
     ? sessions?.find((s) => s.id === editingSessionId) ?? null
@@ -89,7 +99,7 @@ export function TrainingPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {sessions.map((session) => (
+          {sortedSessions.map((session) => (
             <SessionCard
               key={session.id}
               session={session}
