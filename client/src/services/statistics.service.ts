@@ -23,6 +23,7 @@ export interface TeamSeasonStats {
   goalDifference: number;
   cleanSheets: number;
   winPercentage: number;
+  periods?: number;
 }
 
 export interface MatchStats {

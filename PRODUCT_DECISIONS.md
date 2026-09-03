@@ -603,3 +603,23 @@ When building a plan, the Plan Summary panel shows a fair-play target derived fr
 - Match duration and period structure (quarters/halves, from the season/plan)
 
 It calculates an even share: `targetMinutes = matchDuration × outfieldSlots ÷ availablePlayers`, then expresses it as minutes, as a share of the match (%), and as periods (e.g. "~24 min each (~2 quarters) — 50% of the match"). The period label adapts to the format (half / quarter / period). This gives a coach starting from a blank sheet a concrete playing-time goal per player.
+
+---
+
+## Clean Sheets Counted Per Period
+
+The player statistics "CS" metric now counts clean-sheet periods (quarters or halves) rather than whole-match clean sheets.
+
+### Decision
+
+A player earns a clean-sheet period for each period where:
+- The opponent did not score in that period (from `match_results.periodScores`), and
+- The player was on the pitch for the FULL period (their recorded minutes for that period equal the plan's period duration).
+
+This applies to goalkeepers and outfield players equally. Season total is the sum across all completed matches.
+
+The column header adapts to the team's format: "CS Quarters" for quarter-based play, "CS Halves" for halves, with a legend and tooltip explaining it. If a fixture has no per-period score breakdown (older records), it contributes zero clean-sheet periods since attribution isn't possible.
+
+### Rationale
+
+The previous logic gave a whole-match clean sheet if the team conceded zero across the game and the player played ≥2 periods — which didn't reflect what actually happened on the pitch per period. Per-period attribution rewards players for the specific periods they helped keep a clean sheet, and is fairer across rotation.

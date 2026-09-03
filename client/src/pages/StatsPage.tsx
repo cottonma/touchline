@@ -47,7 +47,7 @@ export function StatsPage() {
       ) : (
         <>
           {tab === 'team' && teamStats && <TeamStatsView stats={teamStats} />}
-          {tab === 'players' && playerStats && <PlayerStatsView stats={playerStats} />}
+          {tab === 'players' && playerStats && <PlayerStatsView stats={playerStats} periods={teamStats?.periods} />}
           {tab === 'results' && results && <ResultsView results={results} />}
         </>
       )}
@@ -92,8 +92,12 @@ function TeamStatsView({ stats }: { stats: { played: number; won: number; drawn:
   );
 }
 
-function PlayerStatsView({ stats }: { stats: PlayerSeasonStats[] }) {
+function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; periods?: number }) {
   const [sortBy, setSortBy] = useState<keyof PlayerSeasonStats>('goals');
+
+  // Period wording adapts to the team's format
+  const periodWord = periods === 2 ? 'Half' : periods === 4 ? 'Quarter' : 'Period';
+  const csHeader = `CS ${periodWord}s`;
 
   const hasData = stats.some((s) => s.appearances > 0);
   if (!hasData) {
@@ -133,7 +137,7 @@ function PlayerStatsView({ stats }: { stats: PlayerSeasonStats[] }) {
               <th className="pb-2 font-medium text-center">Apps</th>
               <th className="pb-2 font-medium text-center">Goals</th>
               <th className="pb-2 font-medium text-center">Assists</th>
-              <th className="pb-2 font-medium text-center">CS</th>
+              <th className="pb-2 font-medium text-center" title={`Clean sheet ${periodWord.toLowerCase()}s — full ${periodWord.toLowerCase()}s played where no goal was conceded`}>{csHeader}</th>
               <th className="pb-2 font-medium text-center">MOTM</th>
               <th className="pb-2 font-medium text-right">Minutes</th>
             </tr>
@@ -165,6 +169,9 @@ function PlayerStatsView({ stats }: { stats: PlayerSeasonStats[] }) {
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-muted-foreground">
+        {csHeader} = {periodWord.toLowerCase()}s a player was on the pitch for the whole {periodWord.toLowerCase()} and no goal was conceded (goalkeepers and outfield players both count).
+      </p>
     </div>
   );
 }
