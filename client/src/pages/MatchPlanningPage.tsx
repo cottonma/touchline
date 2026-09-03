@@ -71,13 +71,17 @@ export function MatchPlanningPage() {
   const [versions, setVersions] = useState<any[]>([]);
   const [lastSavedSlots, setLastSavedSlots] = useState<string>('[]'); // JSON for dirty check
 
-  const { data: fixtures } = useFixtures({ status: 'upcoming' });
+  const { data: fixtures } = useFixtures({ status: 'scheduled' });
+  const { data: completedFixtures } = useFixtures({ status: 'completed' });
   const { data: players } = usePlayers();
-  const matchFixtures = fixtures?.filter(f => f.type !== 'training') ?? [];
+  const matchFixtures = [
+    ...(fixtures?.filter(f => f.type !== 'training') ?? []),
+    ...(completedFixtures?.filter(f => f.type !== 'training') ?? []),
+  ];
 
-  // Auto-select first fixture
+  // Auto-select first fixture — prefer the one from URL if present
   if (!selectedFixtureId && matchFixtures.length > 0) {
-    setSelectedFixtureId(matchFixtures[0].id);
+    setSelectedFixtureId(fixtureFromUrl && matchFixtures.some(f => f.id === fixtureFromUrl) ? fixtureFromUrl : matchFixtures[0].id);
   }
 
   // Load plan and availability when fixture changes
