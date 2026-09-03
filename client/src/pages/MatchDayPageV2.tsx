@@ -203,39 +203,52 @@ export function MatchDayPageV2() {
             <CardContent className="p-4">
               <div className="text-center">
                 <p className="text-lg font-bold">
-                  {selectedFixture?.homeAway === 'home' ? clubName : selectedFixture?.opponent}
-                  <span className="mx-3 text-2xl font-bold">{totalGoalsFor} – {totalGoalsAgainst}</span>
-                  {selectedFixture?.homeAway === 'home' ? selectedFixture?.opponent : clubName}
+                  {selectedFixture?.homeAway === 'away' ? selectedFixture?.opponent : clubName}
+                  <span className="mx-3 text-2xl font-bold">
+                    {selectedFixture?.homeAway === 'away' ? totalGoalsAgainst : totalGoalsFor}
+                    {' – '}
+                    {selectedFixture?.homeAway === 'away' ? totalGoalsFor : totalGoalsAgainst}
+                  </span>
+                  {selectedFixture?.homeAway === 'away' ? clubName : selectedFixture?.opponent}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Period scores — 2 columns */}
+          {/* Period scores — 2 columns. Left input is always OUR goals, right is always the opponent's. */}
           <Card>
             <CardHeader className="p-3 pb-1">
               <CardTitle className="text-xs">Period Scores</CardTitle>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Enter your team's goals on the left, the opposition's on the right — this stays the same whether you're home or away.
+              </p>
             </CardHeader>
             <CardContent className="p-3 pt-0">
               <div className="grid grid-cols-2 gap-2">
                 {periodScores.map(ps => (
                   <div key={ps.period} className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold w-6">Q{ps.period}</span>
-                    <Input
-                      type="number" min={0} max={20}
-                      value={ps.goalsFor || ''}
-                      onChange={(e) => handlePeriodScore(ps.period, 'for', Number(e.target.value) || 0)}
-                      className="w-10 h-7 text-center text-xs p-0"
-                      placeholder="0"
-                    />
-                    <span className="text-[10px] text-muted-foreground">–</span>
-                    <Input
-                      type="number" min={0} max={20}
-                      value={ps.goalsAgainst || ''}
-                      onChange={(e) => handlePeriodScore(ps.period, 'against', Number(e.target.value) || 0)}
-                      className="w-10 h-7 text-center text-xs p-0"
-                      placeholder="0"
-                    />
+                    <div className="flex flex-col items-center">
+                      <span className="text-[8px] font-medium text-emerald-600 leading-none mb-0.5">{clubName}</span>
+                      <Input
+                        type="number" min={0} max={20}
+                        value={ps.goalsFor || ''}
+                        onChange={(e) => handlePeriodScore(ps.period, 'for', Number(e.target.value) || 0)}
+                        className="w-10 h-7 text-center text-xs p-0"
+                        placeholder="0"
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-3">–</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[8px] font-medium text-muted-foreground leading-none mb-0.5 max-w-[3rem] truncate">{selectedFixture?.opponent ?? 'Opp'}</span>
+                      <Input
+                        type="number" min={0} max={20}
+                        value={ps.goalsAgainst || ''}
+                        onChange={(e) => handlePeriodScore(ps.period, 'against', Number(e.target.value) || 0)}
+                        className="w-10 h-7 text-center text-xs p-0"
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
