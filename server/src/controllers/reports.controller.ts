@@ -8,20 +8,24 @@ type Request = ExpressRequest<{ playerId?: string }>;
  * Reports Controller
  */
 
+function getClubId(req: Request): string | undefined {
+  return req.headers['x-club-id'] as string | undefined;
+}
+
 export class ReportsController {
-  async getPlayingTime(_req: Request, res: Response): Promise<void> {
-    const report = await reportsService.getPlayingTimeSummary();
+  async getPlayingTime(req: Request, res: Response): Promise<void> {
+    const report = await reportsService.getPlayingTimeSummary(getClubId(req));
     res.json({ data: report });
   }
 
-  async getAttendance(_req: Request, res: Response): Promise<void> {
-    const report = await reportsService.getAttendanceReport();
+  async getAttendance(req: Request, res: Response): Promise<void> {
+    const report = await reportsService.getAttendanceReport(getClubId(req));
     res.json({ data: report });
   }
 
   async getPlayerReport(req: Request, res: Response): Promise<void> {
     const playerId = req.params.playerId!;
-    const report = await reportsService.getPlayerReportCard(playerId);
+    const report = await reportsService.getPlayerReportCard(playerId, getClubId(req));
     if (!report) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found.' });
       return;
@@ -29,18 +33,18 @@ export class ReportsController {
     res.json({ data: report });
   }
 
-  async getSeasonResults(_req: Request, res: Response): Promise<void> {
-    const report = await reportsService.getSeasonResults();
+  async getSeasonResults(req: Request, res: Response): Promise<void> {
+    const report = await reportsService.getSeasonResults(getClubId(req));
     res.json({ data: report });
   }
 
-  async getGkRotation(_req: Request, res: Response): Promise<void> {
-    const report = await reportsService.getGkRotationReport();
+  async getGkRotation(req: Request, res: Response): Promise<void> {
+    const report = await reportsService.getGkRotationReport(getClubId(req));
     res.json({ data: report });
   }
 
-  async getDevelopmentProgress(_req: Request, res: Response): Promise<void> {
-    const report = await reportsService.getDevelopmentProgressReport();
+  async getDevelopmentProgress(req: Request, res: Response): Promise<void> {
+    const report = await reportsService.getDevelopmentProgressReport(getClubId(req));
     res.json({ data: report });
   }
 }
