@@ -1,5 +1,5 @@
 import { db } from '../db/index.js';
-import { goals, playingTime, matchResults, fixtures, players } from '../db/schema.js';
+import { goals, playingTime, matchResults, fixtures, players, seasons } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 
 /**
@@ -52,12 +52,12 @@ export class StatisticsService {
   /**
    * Get season stats for all players.
    */
-  async getPlayerSeasonStats(seasonId?: string): Promise<PlayerSeasonStats[]> {
-    // Get all active players
-    const allPlayers = await db.select().from(players).where(eq(players.isActive, true));
+  async getPlayerSeasonStats(seasonId?: string, clubId?: string): Promise<PlayerSeasonStats[]> {
+    // Get active players scoped to the club
+    const allPlayers = await this.getActivePlayers(clubId);
 
-    // Get all completed match fixture IDs for the season
-    const completedFixtures = await this.getCompletedMatchFixtures(seasonId);
+    // Get all completed match fixture IDs for the club's active season
+    const completedFixtures = await this.getCompletedMatchFixtures(seasonId, clubId);
     const fixtureIds = completedFixtures.map((f) => f.id);
 
     if (fixtureIds.length === 0) {
@@ -135,16 +135,16 @@ export class StatisticsService {
   /**
    * Get season stats for a single player.
    */
-  async getPlayerStats(playerId: string, seasonId?: string): Promise<PlayerSeasonStats | null> {
-    const allStats = await this.getPlayerSeasonStats(seasonId);
+  async getPlayerStats(playerId: string, seasonId?: string, clubId?: string): Promise<PlayerSeasonStats | null> {
+    const allStats = await this.getPlayerSeasonStats(seasonId, clubId);
     return allStats.find((s) => s.playerId === playerId) ?? null;
   }
 
   /**
    * Get team season stats.
    */
-  async getTeamSeasonStats(seasonId?: string): Promise<TeamSeasonStats> {
-    const completedFixtures = await this.getCompletedMatchFixtures(seasonId);
+  async getTeamSeasonStats(seasonId?: string, clubId?: string): Promise<TeamSeasonStats> {
+    const completedFixtures = await this.getCompletedMatchFixtures(seasonId, clubId);
     const fixtureIds = completedFixtures.map((f) => f.id);
 
     if (fixtureIds.length === 0) {
@@ -178,8 +178,8 @@ export class StatisticsService {
   /**
    * Get match-by-match results.
    */
-  async getMatchResults(seasonId?: string): Promise<MatchStats[]> {
-    const completedFixtures = await this.getCompletedMatchFixtures(seasonId);
+  async getMatchResults(seasonId?: string, clubId?: string): Promise<MatchStats[]> {
+    const completedFixtures = await this.getCompletedMatchFixtures(seasonId, clubId);
     const fixtureIds = completedFixtures.map((f) => f.id);
 
     const allResults = await db.select().from(matchResults);
@@ -203,14 +203,37 @@ export class StatisticsService {
 
   /**
    * Helper: get completed match-type fixtures.
+   * If a clubId is provided, scope to that club's active season (unless an
+   * explicit seasonId is given). Fixtures link to a club via their season.
    */
-  private async getCompletedMatchFixtures(seasonId?: string) {
+  private async getCompletedMatchFixtures(seasonId?: string, clubId?: string) {
+    const effectiveSeasonId = seasonId ?? (clubId ? await this.getActiveSeasonId(clubId) : undefined);
     const allFixtures = await db.select().from(fixtures);
     return allFixtures.filter((f) =>
       f.status === 'completed' &&
       f.type !== 'training' &&
-      (seasonId ? f.seasonId === seasonId : true)
+      (effectiveSeasonId ? f.seasonId === effectiveSeasonId : true)
     );
+  }
+
+  /**
+   * Resolve the active season id for a club (falls back to most recent).
+   */
+  private async getActiveSeasonId(clubId: string): Promise<string | undefined> {
+    const clubSeasons = await db.select().from(seasons).where(eq(seasons.clubId, clubId));
+    if (clubSeasons.length === 0) return undefined;
+    const active = clubSeasons.find((s) => s.isActive);
+    if (active) return active.id;
+    return [...clubSeasons].sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''))[0]?.id;
+  }
+
+  /**
+   * Active players scoped to a club.
+   */
+  private async getActivePlayers(clubId?: string) {
+    const conditions = [eq(players.isActive, true)];
+    if (clubId) conditions.push(eq(players.clubId, clubId));
+    return db.select().from(players).where(and(...conditions));
   }
 }
 

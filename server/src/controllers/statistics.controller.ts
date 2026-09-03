@@ -4,6 +4,10 @@ import { statisticsService } from '../services/statistics.service.js';
 
 type Request = ExpressRequest<{ playerId?: string }>;
 
+function getClubId(req: Request): string | undefined {
+  return req.headers['x-club-id'] as string | undefined;
+}
+
 /**
  * Statistics Controller
  */
@@ -15,7 +19,7 @@ export class StatisticsController {
    */
   async getPlayerStats(req: Request, res: Response): Promise<void> {
     const seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
-    const stats = await statisticsService.getPlayerSeasonStats(seasonId);
+    const stats = await statisticsService.getPlayerSeasonStats(seasonId, getClubId(req));
     res.json({ data: stats });
   }
 
@@ -26,7 +30,7 @@ export class StatisticsController {
   async getPlayerStatById(req: Request, res: Response): Promise<void> {
     const playerId = req.params.playerId!;
     const seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
-    const stats = await statisticsService.getPlayerStats(playerId, seasonId);
+    const stats = await statisticsService.getPlayerStats(playerId, seasonId, getClubId(req));
 
     if (!stats) {
       res.status(404).json({ error: 'PLAYER_NOT_FOUND', message: 'Player stats not found.' });
@@ -42,7 +46,7 @@ export class StatisticsController {
    */
   async getTeamStats(req: Request, res: Response): Promise<void> {
     const seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
-    const stats = await statisticsService.getTeamSeasonStats(seasonId);
+    const stats = await statisticsService.getTeamSeasonStats(seasonId, getClubId(req));
     res.json({ data: stats });
   }
 
@@ -52,7 +56,7 @@ export class StatisticsController {
    */
   async getResults(req: Request, res: Response): Promise<void> {
     const seasonId = req.query.seasonId ? String(req.query.seasonId) : undefined;
-    const results = await statisticsService.getMatchResults(seasonId);
+    const results = await statisticsService.getMatchResults(seasonId, getClubId(req));
     res.json({ data: results, count: results.length });
   }
 }
