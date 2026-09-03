@@ -127,9 +127,10 @@ export class ReportsService {
     const allPlayers = await db.select().from(players).where(eq(players.isActive, true));
     const allPlayingTime = await db.select().from(playingTime);
     const completedFixtures = await this.getCompletedMatchFixtures();
+    const completedFixtureIds = new Set(completedFixtures.map(f => f.id));
 
     const playerData = allPlayers.map((p) => {
-      const pt = allPlayingTime.filter((r) => r.playerId === p.id);
+      const pt = allPlayingTime.filter((r) => r.playerId === p.id && completedFixtureIds.has(r.fixtureId));
       const outfieldMinutes = pt.reduce((sum, r) => sum + r.outfieldMinutes, 0);
       const gkMinutes = pt.reduce((sum, r) => sum + r.goalkeeperMinutes, 0);
       const totalMinutes = pt.reduce((sum, r) => sum + r.totalMinutes, 0);
@@ -171,8 +172,11 @@ export class ReportsService {
     const allFixtures = await db.select().from(fixtures);
     const trainingFixtures = allFixtures.filter((f) => f.type === 'training');
 
+    const completedFixtureIds = new Set(completedMatches.map(f => f.id));
+
     const playerData = allPlayers.map((p) => {
-      const matchesPlayed = allPlayingTime.filter((pt) => pt.playerId === p.id && pt.totalMinutes > 0).length;
+      // Only count playing time for fixtures that still exist as completed matches
+      const matchesPlayed = allPlayingTime.filter((pt) => pt.playerId === p.id && pt.totalMinutes > 0 && completedFixtureIds.has(pt.fixtureId)).length;
       const trainingRecords = allTrainingAttendance.filter((ta) => ta.playerId === p.id);
       const trainingAttended = trainingRecords.filter((ta) => ta.attended).length;
       const matchAttendanceRate = completedMatches.length > 0 ? Math.round((matchesPlayed / completedMatches.length) * 100) : 0;
@@ -204,17 +208,18 @@ export class ReportsService {
     const player = allPlayers[0];
     if (!player) return null;
 
-    const allPlayingTime = await db.select().from(playingTime);
-    const pt = allPlayingTime.filter((r) => r.playerId === playerId);
-    const allGoals = await db.select().from(goals);
-    const playerGoals = allGoals.filter((g) => g.scorerId === playerId);
-    const playerAssists = allGoals.filter((g) => g.assistId === playerId);
-    const allResults = await db.select().from(matchResults);
-    const motmCount = allResults.filter((r) => r.motmPlayerId === playerId).length;
-
-    // Clean sheets (simplified: whole match clean sheets where player played 2+ periods)
     const completedFixtures = await this.getCompletedMatchFixtures();
     const fixtureIds = completedFixtures.map((f) => f.id);
+    const completedFixtureIdSet = new Set(fixtureIds);
+
+    const allPlayingTime = await db.select().from(playingTime);
+    // Only count playing time for fixtures that still exist
+    const pt = allPlayingTime.filter((r) => r.playerId === playerId && completedFixtureIdSet.has(r.fixtureId));
+    const allGoals = await db.select().from(goals);
+    const playerGoals = allGoals.filter((g) => g.scorerId === playerId && completedFixtureIdSet.has(g.fixtureId));
+    const playerAssists = allGoals.filter((g) => g.assistId === playerId && completedFixtureIdSet.has(g.fixtureId));
+    const allResults = await db.select().from(matchResults);
+    const motmCount = allResults.filter((r) => r.motmPlayerId === playerId && completedFixtureIdSet.has(r.fixtureId)).length;
     let cleanSheets = 0;
     for (const record of pt) {
       if (fixtureIds.includes(record.fixtureId) && record.periodsPlayed + record.periodsInGoal >= 2) {
@@ -299,9 +304,11 @@ export class ReportsService {
     const allPlayers = await db.select().from(players).where(eq(players.isActive, true));
     const gkVolunteers = allPlayers.filter((p) => p.isGkVolunteer);
     const allPlayingTime = await db.select().from(playingTime);
+    const completedFixtures = await this.getCompletedMatchFixtures();
+    const completedFixtureIds = new Set(completedFixtures.map(f => f.id));
 
     const volunteers = gkVolunteers.map((p) => {
-      const pt = allPlayingTime.filter((r) => r.playerId === p.id && r.goalkeeperMinutes > 0);
+      const pt = allPlayingTime.filter((r) => r.playerId === p.id && r.goalkeeperMinutes > 0 && completedFixtureIds.has(r.fixtureId));
       return {
         name: `${p.firstName} ${p.lastName}`,
         totalGkMinutes: pt.reduce((sum, r) => sum + r.goalkeeperMinutes, 0),
