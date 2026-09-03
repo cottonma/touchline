@@ -195,7 +195,8 @@ export class StatisticsService {
         // Rate based on OUTFIELD minutes only — a player can't score/assist while in goal
         minutesPerGoal: goalCount > 0 ? Math.round(outfieldMinutes / goalCount) : null,
         minutesPerAssist: assistCount > 0 ? Math.round(outfieldMinutes / assistCount) : null,
-        avgMinutesPerAppearance: appearances > 0 ? Math.round(totalMinutes / appearances) : 0,
+        // Average outfield minutes per appearance (GK time excluded)
+        avgMinutesPerAppearance: appearances > 0 ? Math.round(outfieldMinutes / appearances) : 0,
         positionsPlayed,
         positionVariety: positionsPlayed.length,
         gkSharePct: totalMinutes > 0 ? Math.round((goalkeeperMinutes / totalMinutes) * 100) : 0,
