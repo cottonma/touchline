@@ -253,7 +253,6 @@ export function MatchPlanningPage() {
 
   // Intelligence data — fairness uses OUTFIELD minutes only
   const intelligence: PlanIntelligence = useMemo(() => {
-    const allocatedEntries = poolEntries.filter(e => e.isAllocated);
     // Use outfield minutes for fairness (GK minutes don't count toward balance)
     const outfieldMins = poolEntries.map(e => e.outfieldMinutes);
     const allocatedOutfield = outfieldMins.filter(m => m > 0);
@@ -266,16 +265,36 @@ export function MatchPlanningPage() {
     // Also check for players with zero minutes (total, not just outfield)
     const totalAllocated = poolEntries.filter(e => e.plannedMinutes > 0);
 
+    // === Guidance for building from scratch ===
+    const outfieldSlots = plan?.outfieldSlots ?? 6;
+    const availableCount = availablePlayers.length;
+    // Total outfield "player-minutes" available across the whole match
+    const totalOutfieldMinutes = matchDuration * outfieldSlots;
+    // Even share per available player
+    const targetMinutesPerPlayer = availableCount > 0 ? Math.round(totalOutfieldMinutes / availableCount) : 0;
+    // Express as a share of the match and as periods (quarters/halves)
+    const targetSharePct = matchDuration > 0 ? Math.round((targetMinutesPerPlayer / matchDuration) * 100) : 0;
+    const targetPeriods = periodDuration > 0 ? Math.round((targetMinutesPerPlayer / periodDuration) * 10) / 10 : 0;
+
     return {
-      availableCount: availablePlayers.length,
+      availableCount,
       selectedCount: totalAllocated.length,
       notAllocatedCount: poolEntries.filter(e => !e.isAllocated).length,
       highestMinutes: allocatedOutfield.length > 0 ? Math.max(...allocatedOutfield) : 0,
       lowestMinutes: allocatedOutfield.length > 0 ? Math.min(...allocatedOutfield) : 0,
       averageMinutes: allocatedOutfield.length > 0 ? Math.round(allocatedOutfield.reduce((a, b) => a + b, 0) / allocatedOutfield.length) : 0,
       warnings,
+      // guidance
+      outfieldSlots,
+      matchDuration,
+      periodDuration,
+      totalPeriods,
+      periodLabel: totalPeriods === 2 ? 'half' : totalPeriods === 4 ? 'quarter' : 'period',
+      targetMinutesPerPlayer,
+      targetSharePct,
+      targetPeriods,
     };
-  }, [poolEntries, availablePlayers]);
+  }, [poolEntries, availablePlayers, plan, matchDuration, periodDuration, totalPeriods]);
 
   // Track unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -336,19 +355,27 @@ export function MatchPlanningPage() {
     setSelectedSlotId(null);
   }, [formation, activePeriod]);
 
-  /** Swap two players on the pitch */
+  /** Swap two players on the pitch — exchanges their positions for this period.
+   *  Swaps all segments of each player (so a player with a sub still swaps cleanly). */
   const handleSwapSlots = useCallback((slotIdA: string, slotIdB: string) => {
     const formSlots = getFormationSlots(formation);
     const slotA = formSlots.find(s => s.id === slotIdA);
     const slotB = formSlots.find(s => s.id === slotIdB);
     if (!slotA || !slotB) return;
 
+    const posA = slotA.position, gkA = slotA.isGk ?? false;
+    const posB = slotB.position, gkB = slotB.isGk ?? false;
+
     setAllSlots(prev => prev.map(s => {
       if (s.period !== activePeriod) return s;
-      const dbSlotA = prev.find(x => x.period === activePeriod && x.position === slotA.position && x.isGk === (slotA.isGk ?? false) && x.startMinute === 0);
-      const dbSlotB = prev.find(x => x.period === activePeriod && x.position === slotB.position && x.isGk === (slotB.isGk ?? false) && x.startMinute === 0);
-      if (s === dbSlotA && dbSlotB) return { ...s, position: slotB.position, isGk: slotB.isGk ?? false };
-      if (s === dbSlotB && dbSlotA) return { ...s, position: slotA.position, isGk: slotA.isGk ?? false };
+      // Slot currently at position A → move to position B
+      if (s.position === posA && s.isGk === gkA) {
+        return { ...s, position: posB, isGk: gkB };
+      }
+      // Slot currently at position B → move to position A
+      if (s.position === posB && s.isGk === gkB) {
+        return { ...s, position: posA, isGk: gkA };
+      }
       return s;
     }));
     setSelectedSlotId(null);
@@ -839,9 +866,15 @@ export function MatchPlanningPage() {
 
                       {/* Selection hint */}
                       {(selectedSlotId || selectedPoolPlayer) && (
-                        <div className="mt-2 text-xs text-center text-muted-foreground bg-blue-50 rounded-md p-2">
+                        <div className="mt-2 text-xs text-center text-blue-800 bg-blue-50 rounded-md p-2">
                           {selectedPoolPlayer && 'Now tap a position on the pitch to place this player'}
-                          {selectedSlotId && !selectedPoolPlayer && 'Tap another position to swap, or tap a player in the pool to replace'}
+                          {selectedSlotId && !selectedPoolPlayer && (() => {
+                            const sel = pitchSlots.find(s => s.id === selectedSlotId);
+                            const name = sel?.playerName?.split(' ')[0];
+                            return name
+                              ? `${name} selected — tap another player to switch their positions, or tap a pool player to replace`
+                              : 'Tap a player in the pool to fill this position';
+                          })()}
                         </div>
                       )}
 

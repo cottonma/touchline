@@ -584,3 +584,22 @@ Coaches enter match scores in natural football order: **home team score – away
 ### Rationale
 
 Previously the score inputs were fixed as "us – them", which was confusing for away games where scores are conventionally read home-first. Entering in home–away order matches how scores are reported elsewhere and removes the risk of recording an away win as a loss.
+
+---
+
+## Team Selection: Position Swap & Fair-Play Guidance
+
+Two enhancements to the Match Planning (Team Selection) page.
+
+### Position swap
+
+A coach can switch two selected players' positions within a quarter by tapping one player on the pitch, then tapping another. Both players exchange positions (including any within-period sub segments). The selection hint now names the selected player and explains the switch.
+
+### Fair-play guidance
+
+When building a plan, the Plan Summary panel shows a fair-play target derived from the coach's own settings (no hardcoded assumptions):
+
+- Available players and outfield spots (from the plan formation)
+- Match duration and period structure (quarters/halves, from the season/plan)
+
+It calculates an even share: `targetMinutes = matchDuration × outfieldSlots ÷ availablePlayers`, then expresses it as minutes, as a share of the match (%), and as periods (e.g. "~24 min each (~2 quarters) — 50% of the match"). The period label adapts to the format (half / quarter / period). This gives a coach starting from a blank sheet a concrete playing-time goal per player.
