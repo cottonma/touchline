@@ -139,7 +139,9 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
               <th className="pb-2 font-medium text-center">Assists</th>
               <th className="pb-2 font-medium text-center" title={`Clean sheet ${periodWord.toLowerCase()}s — full ${periodWord.toLowerCase()}s played where no goal was conceded`}>{csHeader}</th>
               <th className="pb-2 font-medium text-center">MOTM</th>
-              <th className="pb-2 font-medium text-right">Minutes</th>
+              <th className="pb-2 font-medium text-right" title="Outfield minutes">Outfield</th>
+              <th className="pb-2 font-medium text-right" title="Goalkeeper minutes">GK</th>
+              <th className="pb-2 font-medium text-right" title="Total minutes (outfield + GK)">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -158,12 +160,9 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
                 <td className="py-2.5 text-center">{s.assists || '-'}</td>
                 <td className="py-2.5 text-center">{s.cleanSheets || '-'}</td>
                 <td className="py-2.5 text-center">{s.motmAwards || '-'}</td>
-                <td className="py-2.5 text-right text-muted-foreground">
-                  {s.outfieldMinutes > 0 && <span>{s.outfieldMinutes}</span>}
-                  {s.goalkeeperMinutes > 0 && (
-                    <span className="text-xs"> +{s.goalkeeperMinutes} GK</span>
-                  )}
-                </td>
+                <td className="py-2.5 text-right text-muted-foreground">{s.outfieldMinutes || '-'}</td>
+                <td className="py-2.5 text-right text-muted-foreground">{s.goalkeeperMinutes || '-'}</td>
+                <td className="py-2.5 text-right font-medium">{s.totalMinutes || '-'}</td>
               </tr>
             ))}
           </tbody>
