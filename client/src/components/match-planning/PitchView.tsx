@@ -52,6 +52,7 @@ export interface PitchViewProps {
   selectedPoolPlayerId?: string | null;
   onSlotTap?: (slotId: string) => void;
   onSlotDrop?: (slotId: string, playerId: string) => void;
+  onSlotRemove?: (slotId: string) => void; // remove the player in this slot
   periodDuration?: number;     // for displaying time ranges
   compact?: boolean;           // smaller version for period tabs
   className?: string;
@@ -159,6 +160,7 @@ export function PitchView({
   selectedSlotId,
   selectedPoolPlayerId,
   onSlotTap,
+  onSlotRemove,
   periodDuration,
   compact = false,
   className,
@@ -205,36 +207,51 @@ export function PitchView({
 
         // Split marker: multiple players share this position
         if (hasSub && !compact) {
+          const showRemove = isSelected && !!onSlotRemove;
           return (
-            <button
+            <div
               key={slot.id}
-              onClick={() => onSlotTap?.(slot.id)}
-              className={cn(
-                'absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-stretch transition-all bg-white/95 shadow-md overflow-hidden',
-                'w-16 md:w-20 rounded-lg ring-2',
-                fitClass || 'ring-emerald-400',
-                isSelected && 'ring-4 ring-blue-400 scale-105',
-              )}
+              className="absolute transform -translate-x-1/2 -translate-y-1/2"
               style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
             >
-              {segments.map((seg, i) => (
-                <div key={`${seg.playerId}-${i}`} className={cn(
-                  'px-1 py-0.5 text-center',
-                  i > 0 && 'border-t border-dashed border-gray-300',
-                  i === 0 ? 'bg-white' : 'bg-gray-50',
-                )}>
-                  <span className="text-[9px] md:text-[10px] font-bold text-emerald-800 block leading-tight truncate">
-                    {seg.playerName.split(' ')[0]}
-                  </span>
-                  <span className="text-[7px] md:text-[8px] text-muted-foreground">
-                    {seg.startMinute}–{seg.endMinute}'
-                  </span>
+              <button
+                onClick={() => onSlotTap?.(slot.id)}
+                className={cn(
+                  'flex flex-col items-stretch transition-all bg-white/95 shadow-md overflow-hidden',
+                  'w-16 md:w-20 rounded-lg ring-2',
+                  fitClass || 'ring-emerald-400',
+                  isSelected && 'ring-4 ring-blue-400 scale-105',
+                )}
+              >
+                {segments.map((seg, i) => (
+                  <div key={`${seg.playerId}-${i}`} className={cn(
+                    'px-1 py-0.5 text-center',
+                    i > 0 && 'border-t border-dashed border-gray-300',
+                    i === 0 ? 'bg-white' : 'bg-gray-50',
+                  )}>
+                    <span className="text-[9px] md:text-[10px] font-bold text-emerald-800 block leading-tight truncate">
+                      {seg.playerName.split(' ')[0]}
+                    </span>
+                    <span className="text-[7px] md:text-[8px] text-muted-foreground">
+                      {seg.startMinute}–{seg.endMinute}'
+                    </span>
+                  </div>
+                ))}
+                <div className="bg-emerald-700 text-white text-[7px] md:text-[8px] font-bold text-center py-0.5">
+                  {slot.position}
                 </div>
-              ))}
-              <div className="bg-emerald-700 text-white text-[7px] md:text-[8px] font-bold text-center py-0.5">
-                {slot.position}
-              </div>
-            </button>
+              </button>
+              {showRemove && (
+                <button
+                  type="button"
+                  aria-label={`Remove players from ${slot.position}`}
+                  onClick={(e) => { e.stopPropagation(); onSlotRemove?.(slot.id); }}
+                  className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-500 text-white shadow-md flex items-center justify-center text-sm font-bold leading-none hover:bg-red-600 active:scale-95"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           );
         }
 
@@ -266,46 +283,61 @@ export function PitchView({
           );
         }
 
-        // Standard single-player marker (unchanged)
+        // Standard single-player marker
+        const showRemove = !compact && isSelected && !!slot.playerId && !!onSlotRemove;
         return (
-          <button
+          <div
             key={slot.id}
-            onClick={() => onSlotTap?.(slot.id)}
-            className={cn(
-              'absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all',
-              compact ? 'w-10 h-10' : 'w-14 h-14 md:w-16 md:h-16',
-              slot.playerId
-                ? `bg-white/95 rounded-full shadow-md ring-2 ${fitClass}`
-                : 'bg-white/30 border-2 border-dashed border-white/60 rounded-full',
-              isSelected && 'ring-4 ring-blue-400 scale-110',
-              isDropTarget && 'ring-2 ring-blue-300 bg-white/50 animate-pulse',
-            )}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
           >
-            {slot.playerId ? (
-              <>
+            <button
+              onClick={() => onSlotTap?.(slot.id)}
+              className={cn(
+                'flex flex-col items-center justify-center transition-all',
+                compact ? 'w-10 h-10' : 'w-14 h-14 md:w-16 md:h-16',
+                slot.playerId
+                  ? `bg-white/95 rounded-full shadow-md ring-2 ${fitClass}`
+                  : 'bg-white/30 border-2 border-dashed border-white/60 rounded-full',
+                isSelected && 'ring-4 ring-blue-400 scale-110',
+                isDropTarget && 'ring-2 ring-blue-300 bg-white/50 animate-pulse',
+              )}
+            >
+              {slot.playerId ? (
+                <>
+                  <span className={cn(
+                    'font-bold text-emerald-800 leading-tight',
+                    compact ? 'text-[8px]' : 'text-[10px] md:text-xs'
+                  )}>
+                    {slot.playerName?.split(' ')[0] ?? '?'}
+                  </span>
+                  <span className={cn(
+                    'text-emerald-600 font-medium',
+                    compact ? 'text-[7px]' : 'text-[8px] md:text-[10px]'
+                  )}>
+                    {slot.position}
+                  </span>
+                </>
+              ) : (
                 <span className={cn(
-                  'font-bold text-emerald-800 leading-tight',
+                  'text-white font-bold',
                   compact ? 'text-[8px]' : 'text-[10px] md:text-xs'
-                )}>
-                  {slot.playerName?.split(' ')[0] ?? '?'}
-                </span>
-                <span className={cn(
-                  'text-emerald-600 font-medium',
-                  compact ? 'text-[7px]' : 'text-[8px] md:text-[10px]'
                 )}>
                   {slot.position}
                 </span>
-              </>
-            ) : (
-              <span className={cn(
-                'text-white font-bold',
-                compact ? 'text-[8px]' : 'text-[10px] md:text-xs'
-              )}>
-                {slot.position}
-              </span>
+              )}
+            </button>
+            {showRemove && (
+              <button
+                type="button"
+                aria-label={`Remove ${slot.playerName?.split(' ')[0] ?? 'player'} from ${slot.position}`}
+                onClick={(e) => { e.stopPropagation(); onSlotRemove?.(slot.id); }}
+                className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-500 text-white shadow-md flex items-center justify-center text-sm font-bold leading-none hover:bg-red-600 active:scale-95"
+              >
+                ×
+              </button>
             )}
-          </button>
+          </div>
         );
       })}
     </div>

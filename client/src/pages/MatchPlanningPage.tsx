@@ -345,14 +345,15 @@ export function MatchPlanningPage() {
     setSelectedPoolPlayer(null);
   }, [formation, activePeriod, periodDuration, plan, allSlots]);
 
-  /** Remove a player from a slot */
+  /** Remove a player from a slot (clears all segments at that position for this period) */
   const handleRemoveFromSlot = useCallback((slotId: string) => {
     const formSlots = getFormationSlots(formation);
     const targetSlot = formSlots.find(s => s.id === slotId);
     if (!targetSlot) return;
 
-    setAllSlots(prev => prev.filter(s => !(s.period === activePeriod && s.position === targetSlot.position && s.isGk === (targetSlot.isGk ?? false) && s.startMinute === 0)));
+    setAllSlots(prev => prev.filter(s => !(s.period === activePeriod && s.position === targetSlot.position && s.isGk === (targetSlot.isGk ?? false))));
     setSelectedSlotId(null);
+    setSelectedPoolPlayer(null);
   }, [formation, activePeriod]);
 
   /** Swap two players on the pitch — exchanges their positions for this period.
@@ -860,6 +861,7 @@ export function MatchPlanningPage() {
                           selectedSlotId={selectedSlotId}
                           selectedPoolPlayerId={selectedPoolPlayer}
                           onSlotTap={handleSlotTap}
+                          onSlotRemove={handleRemoveFromSlot}
                           periodDuration={periodDuration}
                         />
                       </div>
@@ -872,7 +874,7 @@ export function MatchPlanningPage() {
                             const sel = pitchSlots.find(s => s.id === selectedSlotId);
                             const name = sel?.playerName?.split(' ')[0];
                             return name
-                              ? `${name} selected — tap another player to switch their positions, or tap a pool player to replace`
+                              ? `${name} selected — tap another player to switch positions, tap a pool player to replace, or tap the red × to remove`
                               : 'Tap a player in the pool to fill this position';
                           })()}
                         </div>
