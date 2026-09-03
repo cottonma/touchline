@@ -1,5 +1,5 @@
 import { db } from '../db/index.js';
-import { players, fixtures, playingTime, matchResults, goals, trainingAttendance, developmentGoals, seasons } from '../db/schema.js';
+import { players, fixtures, playingTime, matchResults, goals, trainingAttendance, trainingSessions, developmentGoals, seasons } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 
 /**
@@ -168,24 +168,47 @@ export class ReportsService {
     const allPlayers = await this.getActivePlayers(clubId);
     const allPlayingTime = await db.select().from(playingTime);
     const allTrainingAttendance = await db.select().from(trainingAttendance);
+    const allTrainingSessions = await db.select().from(trainingSessions);
     const completedMatches = await this.getCompletedMatchFixtures(clubId);
-    const trainingFixtures = await this.getClubFixtures(clubId).then((fx) => fx.filter((f) => f.type === 'training'));
+    const clubFixtures = await this.getClubFixtures(clubId);
+    const clubFixtureIds = new Set(clubFixtures.map((f) => f.id));
 
     const completedFixtureIds = new Set(completedMatches.map(f => f.id));
+    const clubPlayerIds = new Set(allPlayers.map((p) => p.id));
+
+    // Determine which training sessions belong to this club.
+    // A session belongs to the club if it links to a club fixture, or (for
+    // standalone sessions with no fixture link) if it has attendance records
+    // for one of the club's players.
+    const clubSessionIds = new Set<string>();
+    for (const s of allTrainingSessions) {
+      const linkedToClub =
+        (s.fixtureId && clubFixtureIds.has(s.fixtureId)) ||
+        (s.linkedFixtureId && clubFixtureIds.has(s.linkedFixtureId));
+      const isStandalone = !s.fixtureId && !s.linkedFixtureId;
+      const hasClubAttendance = allTrainingAttendance.some(
+        (ta) => ta.sessionId === s.id && clubPlayerIds.has(ta.playerId)
+      );
+      if (linkedToClub || (isStandalone && hasClubAttendance) || (!clubId && hasClubAttendance)) {
+        clubSessionIds.add(s.id);
+      }
+    }
+    const trainingSessionCount = clubSessionIds.size;
 
     const playerData = allPlayers.map((p) => {
       // Only count playing time for fixtures that still exist as completed matches
       const matchesPlayed = allPlayingTime.filter((pt) => pt.playerId === p.id && pt.totalMinutes > 0 && completedFixtureIds.has(pt.fixtureId)).length;
-      const trainingRecords = allTrainingAttendance.filter((ta) => ta.playerId === p.id);
+      // Count attendance only for this club's training sessions
+      const trainingRecords = allTrainingAttendance.filter((ta) => ta.playerId === p.id && ta.sessionId && clubSessionIds.has(ta.sessionId));
       const trainingAttended = trainingRecords.filter((ta) => ta.attended).length;
       const matchAttendanceRate = completedMatches.length > 0 ? Math.round((matchesPlayed / completedMatches.length) * 100) : 0;
-      const trainingRate = trainingFixtures.length > 0 ? Math.round((trainingAttended / trainingFixtures.length) * 100) : 0;
+      const trainingRate = trainingSessionCount > 0 ? Math.round((trainingAttended / trainingSessionCount) * 100) : 0;
 
       return {
         name: `${p.firstName} ${p.lastName}`,
         matchesAvailable: completedMatches.length,
         matchesPlayed,
-        trainingSessions: trainingFixtures.length,
+        trainingSessions: trainingSessionCount,
         trainingAttended,
         matchAttendanceRate,
         trainingAttendanceRate: trainingRate,
