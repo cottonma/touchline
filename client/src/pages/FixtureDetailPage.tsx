@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Ban, Trash2, MapPin, Clock, Target, Trophy } from 'lucide-react';
+import { ArrowLeft, Edit, Ban, Trash2, MapPin, Clock, Target, Trophy, Plus, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
 import { useFixture, useCancelFixture, useDeleteFixture } from '@/hooks/use-fixtures';
 import { FixtureForm } from '@/components/fixtures/FixtureForm';
 import { api } from '@/lib/api';
 import { usePlayers } from '@/hooks/use-players';
+
+interface GoalEntry {
+  scorerId: string;
+  assistId?: string;
+  period?: number;
+}
 
 const TYPE_LABELS: Record<string, string> = {
   match: 'Match',
@@ -41,16 +48,53 @@ export function FixtureDetailPage() {
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [matchRecord, setMatchRecord] = useState<any>(null);
+  const [editingGoals, setEditingGoals] = useState(false);
+  const [goalDraft, setGoalDraft] = useState<GoalEntry[]>([]);
+  const [savingGoals, setSavingGoals] = useState(false);
   const { data: players } = usePlayers();
 
   // Fetch match result for completed fixtures
-  useEffect(() => {
-    if (fixture?.status === 'completed' && id) {
+  const loadMatchRecord = () => {
+    if (id) {
       api.get<any>(`/fixtures/${id}/match-day`).then(res => {
         setMatchRecord(res?.data ?? res ?? null);
       }).catch(() => {});
     }
+  };
+
+  useEffect(() => {
+    if (fixture?.status === 'completed' && id) {
+      loadMatchRecord();
+    }
   }, [fixture?.status, id]);
+
+  const startEditGoals = () => {
+    const existing: GoalEntry[] = (matchRecord?.goals ?? []).map((g: any) => ({
+      scorerId: g.scorerId,
+      assistId: g.assistId || g.assistPlayerId || undefined,
+      period: g.period ?? undefined,
+    }));
+    setGoalDraft(existing);
+    setEditingGoals(true);
+  };
+
+  const saveGoals = async () => {
+    if (!id) return;
+    setSavingGoals(true);
+    try {
+      await api.put(`/match-plans/${id}/goals`, { goals: goalDraft.filter(g => g.scorerId) });
+      setEditingGoals(false);
+      loadMatchRecord();
+    } catch (e) {
+      // swallow — keep editor open so the coach can retry
+    } finally {
+      setSavingGoals(false);
+    }
+  };
+
+  const totalPeriods = matchRecord?.result?.periodScores
+    ? (JSON.parse(matchRecord.result.periodScores) as any[]).length
+    : 4;
 
   if (isLoading) {
     return (
@@ -296,25 +340,71 @@ export function FixtureDetailPage() {
               </div>
 
               {/* Goals */}
-              {matchRecord.goals && matchRecord.goals.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Goals</h4>
-                  <div className="space-y-1">
-                    {matchRecord.goals.map((g: any, i: number) => {
-                      const scorer = players?.find(p => p.id === g.scorerId);
-                      const assist = players?.find(p => p.id === (g.assistId || g.assistPlayerId));
-                      return (
-                        <div key={i} className="flex items-center gap-2 text-sm">
-                          <span>⚽</span>
-                          <span className="font-medium">{scorer ? `${scorer.firstName} ${scorer.lastName}` : 'Unknown'}</span>
-                          {assist && <span className="text-muted-foreground text-xs">(assist: {assist.firstName})</span>}
-                          {g.period && <span className="text-muted-foreground text-xs">Q{g.period}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-xs font-medium text-muted-foreground">Goalscorers</h4>
+                  {!editingGoals && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={startEditGoals}>
+                      <Edit className="h-3.5 w-3.5" /> {matchRecord.goals && matchRecord.goals.length > 0 ? 'Edit' : 'Add goalscorers'}
+                    </Button>
+                  )}
                 </div>
-              )}
+
+                {!editingGoals ? (
+                  matchRecord.goals && matchRecord.goals.length > 0 ? (
+                    <div className="space-y-1">
+                      {matchRecord.goals.map((g: any, i: number) => {
+                        const scorer = players?.find(p => p.id === g.scorerId);
+                        const assist = players?.find(p => p.id === (g.assistId || g.assistPlayerId));
+                        return (
+                          <div key={i} className="flex items-center gap-2 text-sm">
+                            <span>⚽</span>
+                            <span className="font-medium">{scorer ? `${scorer.firstName} ${scorer.lastName}` : 'Unknown'}</span>
+                            {assist && <span className="text-muted-foreground text-xs">(assist: {assist.firstName})</span>}
+                            {g.period && <span className="text-muted-foreground text-xs">Q{g.period}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No goalscorers recorded yet.</p>
+                  )
+                ) : (
+                  <div className="space-y-2">
+                    {typeof matchRecord.result?.goalsFor === 'number' && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Your team scored {matchRecord.result.goalsFor} — add one line per goal.
+                      </p>
+                    )}
+                    {goalDraft.map((goal, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Select value={goal.scorerId} onChange={(e) => { const u = [...goalDraft]; u[idx].scorerId = e.target.value; setGoalDraft(u); }} className="flex-1 h-9 text-xs">
+                          <option value="">Scorer...</option>
+                          {players?.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                        </Select>
+                        <Select value={goal.assistId ?? ''} onChange={(e) => { const u = [...goalDraft]; u[idx].assistId = e.target.value || undefined; setGoalDraft(u); }} className="flex-1 h-9 text-xs">
+                          <option value="">Assist...</option>
+                          {players?.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                        </Select>
+                        <Select value={String(goal.period ?? '')} onChange={(e) => { const u = [...goalDraft]; u[idx].period = Number(e.target.value) || undefined; setGoalDraft(u); }} className="w-16 h-9 text-xs">
+                          <option value="">Q?</option>
+                          {Array.from({ length: totalPeriods }, (_, i) => <option key={i + 1} value={i + 1}>Q{i + 1}</option>)}
+                        </Select>
+                        <button onClick={() => setGoalDraft(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 p-1"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setGoalDraft([...goalDraft, { scorerId: '' }])}>
+                        <Plus className="h-3.5 w-3.5" /> Add Goal
+                      </Button>
+                      <Button size="sm" onClick={saveGoals} disabled={savingGoals}>
+                        <Save className="h-3.5 w-3.5" /> {savingGoals ? 'Saving...' : 'Save'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setEditingGoals(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Coach notes */}
               {matchRecord.result?.coachNotes && (

@@ -241,6 +241,25 @@ router.post('/:fixtureId/complete', asyncHandler(async (req, res) => {
   res.json({ data: result.data });
 }));
 
+// Update goalscorers for a fixture (add/correct after completion) — does not change scores or minutes
+router.put('/:fixtureId/goals', asyncHandler(async (req, res) => {
+  const fixtureId = req.params.fixtureId as string;
+  const { goals: goalEntries } = req.body;
+
+  if (!Array.isArray(goalEntries)) {
+    res.status(400).json({ error: 'goals must be an array' });
+    return;
+  }
+
+  const result = await matchCompletionService.updateGoals(fixtureId, goalEntries);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ data: result.data });
+}));
+
 // Update formation for a specific period
 router.put('/:fixtureId/formation/:period', asyncHandler(async (req, res) => {
   const fixtureId = req.params.fixtureId as string;

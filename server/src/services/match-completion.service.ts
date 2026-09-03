@@ -186,6 +186,41 @@ export class MatchCompletionService {
       },
     };
   }
+
+  /**
+   * Update just the goalscorers for a fixture (e.g. added/corrected after
+   * the match was completed). Does not touch minutes or scores.
+   */
+  async updateGoals(fixtureId: string, goalEntries: { scorerId: string; assistId?: string; period?: number; minute?: number }[]) {
+    const [fixture] = await db.select().from(fixtures).where(eq(fixtures.id, fixtureId)).limit(1);
+    if (!fixture) {
+      return { success: false, error: 'Fixture not found.' };
+    }
+
+    const now = new Date().toISOString();
+
+    // Replace goals: delete existing, insert the provided set
+    const existingGoals = await db.select().from(goals).where(eq(goals.fixtureId, fixtureId));
+    for (const g of existingGoals) {
+      await db.delete(goals).where(eq(goals.id, g.id));
+    }
+    for (const goal of goalEntries) {
+      if (!goal.scorerId) continue;
+      await db.insert(goals).values({
+        id: nanoid(),
+        fixtureId,
+        scorerId: goal.scorerId,
+        assistId: goal.assistId ?? null,
+        period: goal.period ?? null,
+        minute: goal.minute ?? null,
+        notes: null,
+        createdAt: now,
+      });
+    }
+
+    const saved = await db.select().from(goals).where(eq(goals.fixtureId, fixtureId));
+    return { success: true, data: { goals: saved } };
+  }
 }
 
 export const matchCompletionService = new MatchCompletionService();
