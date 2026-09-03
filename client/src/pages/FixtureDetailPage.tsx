@@ -350,20 +350,18 @@ export function FixtureDetailPage() {
         )}
       </div>
 
-      {/* Delete option for scheduled fixtures */}
-      {fixture.status !== 'completed' && (
-        <div className="pt-4 border-t">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setShowConfirmDelete(true)}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete fixture permanently
-          </Button>
-        </div>
-      )}
+      {/* Delete option — available for all fixtures */}
+      <div className="pt-4 border-t">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={() => setShowConfirmDelete(true)}
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete fixture permanently
+        </Button>
+      </div>
     </div>
   );
 }

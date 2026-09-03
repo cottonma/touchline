@@ -1,4 +1,4 @@
-import { db } from '../db/index.js';
+import { db, sql } from '../db/index.js';
 import { fixtures } from '../db/schema.js';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
@@ -196,12 +196,42 @@ export class FixtureRepository {
   }
 
   /**
-   * Delete a fixture permanently.
-   * Only allowed for scheduled fixtures (not completed ones with recorded data).
+   * Delete a fixture permanently, cleaning up all related records first
+   * to avoid foreign key constraint violations.
    */
   async delete(id: string): Promise<boolean> {
     const existing = await this.findById(id);
     if (!existing) return false;
+
+    // Delete all records that reference this fixture (order matters for FKs)
+    const relatedTables = [
+      'match_plan_slots',       // references match_plans, cleared via match_plan cascade below
+      'scout_observations',
+      'motm_votes',
+      'playing_time',
+      'goals',
+      'match_events',
+      'availability',
+      'match_results',
+      'team_selections',
+      'substitution_plans',
+      'development_observations',
+    ];
+
+    // match_plan_slots and match_plan_versions reference match_plans, delete those first
+    try {
+      await sql`DELETE FROM match_plan_slots WHERE match_plan_id IN (SELECT id FROM match_plans WHERE fixture_id = ${id})`;
+      await sql`DELETE FROM match_plan_versions WHERE match_plan_id IN (SELECT id FROM match_plans WHERE fixture_id = ${id})`;
+      await sql`DELETE FROM match_plans WHERE fixture_id = ${id}`;
+    } catch {}
+
+    for (const table of relatedTables) {
+      try {
+        await sql`DELETE FROM ${sql(table)} WHERE fixture_id = ${id}`;
+      } catch {
+        // table may not have fixture_id or may not exist — skip
+      }
+    }
 
     await db.delete(fixtures).where(eq(fixtures.id, id));
     return true;

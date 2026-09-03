@@ -170,16 +170,8 @@ export class FixtureService {
       };
     }
 
-    if (existing.status === 'completed') {
-      return {
-        success: false,
-        error: {
-          code: 'CANNOT_DELETE_COMPLETED',
-          message: 'Cannot delete a completed fixture. Use cancel instead.',
-        },
-      };
-    }
-
+    // Deletion now cleans up all related records (plans, results, availability, etc.)
+    // so completed fixtures can also be removed if the coach chooses to.
     await fixtureRepository.delete(id);
     return { success: true, data: { message: 'Fixture deleted successfully.' } };
   }
