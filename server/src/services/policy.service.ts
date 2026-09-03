@@ -81,26 +81,6 @@ export const DEFAULT_POLICIES: UpsertPolicyData[] = [
     description: 'Minimum minutes a player must play when subbed on mid-period',
   },
 
-  // Position Rotation
-  {
-    category: 'positions',
-    key: 'rotation_enabled',
-    value: JSON.stringify(true),
-    description: 'Whether the system suggests position rotation',
-  },
-  {
-    category: 'positions',
-    key: 'rotation_frequency_weeks',
-    value: JSON.stringify(6),
-    description: 'Number of weeks a player stays in primary position before rotation is suggested',
-  },
-  {
-    category: 'positions',
-    key: 'primary_position_priority',
-    value: JSON.stringify(true),
-    description: 'Whether to prioritise primary position in team selection',
-  },
-
   // Goalkeeper
   {
     category: 'goalkeeper',
@@ -299,14 +279,6 @@ export class PolicyService {
       maxConsecutiveBenchPeriods: await this.getPolicyValue('playing_time', 'max_consecutive_bench_periods', 1),
       crossMatchCompensation: await this.getPolicyValue('playing_time', 'cross_match_compensation', false),
       minSubMinutes: await this.getPolicyValue('playing_time', 'min_sub_minutes', 5),
-    };
-  }
-
-  async getPositionConfig() {
-    return {
-      rotationEnabled: await this.getPolicyValue('positions', 'rotation_enabled', true),
-      rotationFrequencyWeeks: await this.getPolicyValue('positions', 'rotation_frequency_weeks', 6),
-      primaryPositionPriority: await this.getPolicyValue('positions', 'primary_position_priority', true),
     };
   }
 

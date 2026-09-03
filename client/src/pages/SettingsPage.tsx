@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Shield, Clock, RotateCw, Target, BarChart3, Award, Bot, Compass } from 'lucide-react';
+import { Shield, Clock, Target, BarChart3, Award, Bot, Compass } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -188,52 +188,6 @@ export function SettingsPage() {
               <ToggleSwitch
                 checked={getValue('playing_time', 'cross_match_compensation', false)}
                 onChange={(v) => handleUpdate('playing_time', 'cross_match_compensation', v)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Position Rotation */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <RotateCw className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Position Rotation</CardTitle>
-            </div>
-            <CardDescription>
-              How often players should experience different positions
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Suggest rotation</Label>
-                <p className="text-xs text-muted-foreground">Flag when a player hasn't rotated for a while</p>
-              </div>
-              <ToggleSwitch
-                checked={getValue('positions', 'rotation_enabled', true)}
-                onChange={(v) => handleUpdate('positions', 'rotation_enabled', v)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Rotation frequency (weeks)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                value={getValue('positions', 'rotation_frequency_weeks', 6)}
-                onChange={(e) => handleUpdate('positions', 'rotation_frequency_weeks', Number(e.target.value))}
-              />
-              <p className="text-xs text-muted-foreground">Suggest rotation after this many weeks in the same position</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Prioritise primary position</Label>
-                <p className="text-xs text-muted-foreground">Prefer player's main position in team selection</p>
-              </div>
-              <ToggleSwitch
-                checked={getValue('positions', 'primary_position_priority', true)}
-                onChange={(v) => handleUpdate('positions', 'primary_position_priority', v)}
               />
             </div>
           </CardContent>
