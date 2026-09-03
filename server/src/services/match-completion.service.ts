@@ -221,6 +221,25 @@ export class MatchCompletionService {
     const saved = await db.select().from(goals).where(eq(goals.fixtureId, fixtureId));
     return { success: true, data: { goals: saved } };
   }
+
+  /**
+   * Update just the coach notes for a completed fixture's match result.
+   */
+  async updateCoachNotes(fixtureId: string, coachNotes: string) {
+    const [existingResult] = await db.select().from(matchResults)
+      .where(eq(matchResults.fixtureId, fixtureId)).limit(1);
+    if (!existingResult) {
+      return { success: false, error: 'No match result found for this fixture.' };
+    }
+
+    await db.update(matchResults)
+      .set({ coachNotes: coachNotes || null, updatedAt: new Date().toISOString() })
+      .where(eq(matchResults.id, existingResult.id));
+
+    const [updated] = await db.select().from(matchResults)
+      .where(eq(matchResults.id, existingResult.id)).limit(1);
+    return { success: true, data: { result: updated } };
+  }
 }
 
 export const matchCompletionService = new MatchCompletionService();

@@ -260,6 +260,25 @@ router.put('/:fixtureId/goals', asyncHandler(async (req, res) => {
   res.json({ data: result.data });
 }));
 
+// Update coach notes for a completed fixture — does not change scores, goals, or minutes
+router.put('/:fixtureId/coach-notes', asyncHandler(async (req, res) => {
+  const fixtureId = req.params.fixtureId as string;
+  const { coachNotes } = req.body;
+
+  if (typeof coachNotes !== 'string') {
+    res.status(400).json({ error: 'coachNotes must be a string' });
+    return;
+  }
+
+  const result = await matchCompletionService.updateCoachNotes(fixtureId, coachNotes);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  res.json({ data: result.data });
+}));
+
 // Update formation for a specific period
 router.put('/:fixtureId/formation/:period', asyncHandler(async (req, res) => {
   const fixtureId = req.params.fixtureId as string;

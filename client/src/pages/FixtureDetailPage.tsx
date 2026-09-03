@@ -52,6 +52,9 @@ export function FixtureDetailPage() {
   const [editingGoals, setEditingGoals] = useState(false);
   const [goalDraft, setGoalDraft] = useState<GoalEntry[]>([]);
   const [savingGoals, setSavingGoals] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
   const { data: players } = usePlayers();
 
   // Fetch match result for completed fixtures
@@ -96,6 +99,25 @@ export function FixtureDetailPage() {
   const totalPeriods = matchRecord?.result?.periodScores
     ? (JSON.parse(matchRecord.result.periodScores) as any[]).length
     : 4;
+
+  const startEditNotes = () => {
+    setNotesDraft(matchRecord?.result?.coachNotes ?? '');
+    setEditingNotes(true);
+  };
+
+  const saveNotes = async () => {
+    if (!id) return;
+    setSavingNotes(true);
+    try {
+      await api.put(`/match-plans/${id}/coach-notes`, { coachNotes: notesDraft });
+      setEditingNotes(false);
+      loadMatchRecord();
+    } catch (e) {
+      // keep editor open so the coach can retry
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -413,12 +435,40 @@ export function FixtureDetailPage() {
               </div>
 
               {/* Coach notes */}
-              {matchRecord.result?.coachNotes && (
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Coach Notes</h4>
-                  <p className="text-sm">{matchRecord.result.coachNotes}</p>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-xs font-medium text-muted-foreground">Coach Notes</h4>
+                  {!editingNotes && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={startEditNotes}>
+                      <Edit className="h-3.5 w-3.5" /> {matchRecord.result?.coachNotes ? 'Edit' : 'Add notes'}
+                    </Button>
+                  )}
                 </div>
-              )}
+
+                {!editingNotes ? (
+                  matchRecord.result?.coachNotes ? (
+                    <p className="text-sm whitespace-pre-wrap">{matchRecord.result.coachNotes}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No coach notes yet.</p>
+                  )
+                ) : (
+                  <div className="space-y-2">
+                    <textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      rows={4}
+                      placeholder="Add your reflections on the match..."
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" onClick={saveNotes} disabled={savingNotes}>
+                        <Save className="h-3.5 w-3.5" /> {savingNotes ? 'Saving...' : 'Save'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setEditingNotes(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* MOTM */}
               {matchRecord.result?.motmPlayerId && (
