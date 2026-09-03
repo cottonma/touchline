@@ -11,6 +11,14 @@ export interface PlayerSeasonStats {
   outfieldMinutes: number;
   goalkeeperMinutes: number;
   totalMinutes: number;
+  goalInvolvements: number;
+  minutesPerGoal: number | null;
+  minutesPerAssist: number | null;
+  avgMinutesPerAppearance: number;
+  positionsPlayed: string[];
+  positionVariety: number;
+  gkSharePct: number;
+  periodsPlayed: number;
 }
 
 export interface TeamSeasonStats {

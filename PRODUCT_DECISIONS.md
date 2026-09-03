@@ -623,3 +623,19 @@ The column header adapts to the team's format: "CS Quarters" for quarter-based p
 ### Rationale
 
 The previous logic gave a whole-match clean sheet if the team conceded zero across the game and the player played ≥2 periods — which didn't reflect what actually happened on the pitch per period. Per-period attribution rewards players for the specific periods they helped keep a clean sheet, and is fairer across rotation.
+
+---
+
+## Expanded Player Statistics
+
+Added derived metrics to the player statistics table, all from data already captured (goals, assists, playing time, positions, periods). No new tracking required.
+
+New columns:
+- **G+A** — goal involvements (goals + assists)
+- **Qs/Hs Played** — total periods a player featured in (adapts label to format)
+- **Avg/App** — average minutes per appearance
+- **Min/Goal**, **Min/Assist** — minutes played per goal / assist (readable youth-friendly rate; "a goal every X minutes" rather than a tiny per-minute decimal)
+- **GK %** — share of minutes spent in goal (rotation fairness)
+- **Positions** — distinct positions played this season (development, not ranking)
+
+Rate metrics use minutes-per-event rather than events-per-minute to keep numbers readable and avoid turning children into per-minute scoring ratios. No rankings or grades are introduced; these are informational for the coach.

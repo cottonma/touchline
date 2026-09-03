@@ -115,7 +115,7 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
       {/* Sort selector */}
       <div className="flex items-center gap-2 text-sm">
         <span className="text-muted-foreground">Sort by:</span>
-        {(['goals', 'assists', 'appearances', 'cleanSheets', 'motmAwards', 'totalMinutes'] as (keyof PlayerSeasonStats)[]).map((key) => (
+        {(['goals', 'assists', 'goalInvolvements', 'appearances', 'cleanSheets', 'motmAwards', 'totalMinutes'] as (keyof PlayerSeasonStats)[]).map((key) => (
           <button
             key={key}
             onClick={() => setSortBy(key)}
@@ -137,11 +137,18 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
               <th className="pb-2 font-medium text-center">Apps</th>
               <th className="pb-2 font-medium text-center">Goals</th>
               <th className="pb-2 font-medium text-center">Assists</th>
+              <th className="pb-2 font-medium text-center" title="Goal involvements — goals plus assists">G+A</th>
               <th className="pb-2 font-medium text-center" title={`Clean sheet ${periodWord.toLowerCase()}s — full ${periodWord.toLowerCase()}s played where no goal was conceded`}>{csHeader}</th>
               <th className="pb-2 font-medium text-center">MOTM</th>
+              <th className="pb-2 font-medium text-center" title={`Total ${periodWord.toLowerCase()}s a player featured in`}>{periodWord.charAt(0)}s Played</th>
               <th className="pb-2 font-medium text-right" title="Outfield minutes">Outfield</th>
               <th className="pb-2 font-medium text-right" title="Goalkeeper minutes">GK</th>
               <th className="pb-2 font-medium text-right" title="Total minutes (outfield + GK)">Total</th>
+              <th className="pb-2 font-medium text-right" title="Average minutes per appearance">Avg/App</th>
+              <th className="pb-2 font-medium text-right" title="Minutes played per goal scored">Min/Goal</th>
+              <th className="pb-2 font-medium text-right" title="Minutes played per assist">Min/Assist</th>
+              <th className="pb-2 font-medium text-center" title="Percentage of minutes played in goal">GK %</th>
+              <th className="pb-2 font-medium" title="Distinct positions played this season">Positions</th>
             </tr>
           </thead>
           <tbody>
@@ -158,19 +165,27 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
                 <td className="py-2.5 text-center">{s.appearances}</td>
                 <td className="py-2.5 text-center font-medium">{s.goals || '-'}</td>
                 <td className="py-2.5 text-center">{s.assists || '-'}</td>
+                <td className="py-2.5 text-center font-medium">{s.goalInvolvements || '-'}</td>
                 <td className="py-2.5 text-center">{s.cleanSheets || '-'}</td>
                 <td className="py-2.5 text-center">{s.motmAwards || '-'}</td>
+                <td className="py-2.5 text-center text-muted-foreground">{s.periodsPlayed || '-'}</td>
                 <td className="py-2.5 text-right text-muted-foreground">{s.outfieldMinutes || '-'}</td>
                 <td className="py-2.5 text-right text-muted-foreground">{s.goalkeeperMinutes || '-'}</td>
                 <td className="py-2.5 text-right font-medium">{s.totalMinutes || '-'}</td>
+                <td className="py-2.5 text-right text-muted-foreground">{s.avgMinutesPerAppearance || '-'}</td>
+                <td className="py-2.5 text-right text-muted-foreground">{s.minutesPerGoal != null ? `${s.minutesPerGoal}'` : '-'}</td>
+                <td className="py-2.5 text-right text-muted-foreground">{s.minutesPerAssist != null ? `${s.minutesPerAssist}'` : '-'}</td>
+                <td className="py-2.5 text-center text-muted-foreground">{s.gkSharePct > 0 ? `${s.gkSharePct}%` : '-'}</td>
+                <td className="py-2.5 text-xs text-muted-foreground whitespace-nowrap">{s.positionsPlayed.length > 0 ? s.positionsPlayed.join(', ') : '-'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {csHeader} = {periodWord.toLowerCase()}s a player was on the pitch for the whole {periodWord.toLowerCase()} and no goal was conceded (goalkeepers and outfield players both count).
-      </p>
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p><span className="font-medium">G+A</span> = goal involvements (goals + assists). <span className="font-medium">{csHeader}</span> = {periodWord.toLowerCase()}s played in full with no goal conceded (GK and outfield count).</p>
+        <p><span className="font-medium">Min/Goal</span> &amp; <span className="font-medium">Min/Assist</span> = minutes played per goal / assist. <span className="font-medium">Avg/App</span> = average minutes per appearance. <span className="font-medium">GK %</span> = share of minutes in goal. <span className="font-medium">Positions</span> = distinct positions played this season.</p>
+      </div>
     </div>
   );
 }
@@ -224,6 +239,7 @@ function formatSortLabel(key: keyof PlayerSeasonStats): string {
   const labels: Record<string, string> = {
     goals: 'Goals',
     assists: 'Assists',
+    goalInvolvements: 'G+A',
     appearances: 'Apps',
     cleanSheets: 'CS',
     motmAwards: 'MOTM',

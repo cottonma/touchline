@@ -24,6 +24,15 @@ export interface PlayerSeasonStats {
   outfieldMinutes: number;
   goalkeeperMinutes: number;
   totalMinutes: number;
+  // Derived metrics
+  goalInvolvements: number;        // goals + assists
+  minutesPerGoal: number | null;   // total minutes / goals (null if no goals)
+  minutesPerAssist: number | null; // total minutes / assists (null if no assists)
+  avgMinutesPerAppearance: number; // total minutes / appearances
+  positionsPlayed: string[];       // distinct positions across the season
+  positionVariety: number;         // count of distinct positions
+  gkSharePct: number;              // % of minutes spent in goal
+  periodsPlayed: number;           // total periods featured (outfield + in goal)
 }
 
 export interface TeamSeasonStats {
@@ -152,17 +161,44 @@ export class StatisticsService {
         }
       }
 
+      const goalCount = playerGoals.length;
+      const assistCount = playerAssists.length;
+      const outfieldMinutes = playerTime.reduce((sum, pt) => sum + pt.outfieldMinutes, 0);
+      const goalkeeperMinutes = playerTime.reduce((sum, pt) => sum + pt.goalkeeperMinutes, 0);
+      const totalMinutes = playerTime.reduce((sum, pt) => sum + pt.totalMinutes, 0);
+      const periodsPlayed = playerTime.reduce((sum, pt) => sum + pt.periodsPlayed + pt.periodsInGoal, 0);
+
+      // Distinct positions across the season (from each match's positionsPlayed JSON)
+      const positionSet = new Set<string>();
+      for (const pt of playerTime) {
+        if (!pt.positionsPlayed) continue;
+        try {
+          const positions = JSON.parse(pt.positionsPlayed) as string[];
+          for (const pos of positions) if (pos) positionSet.add(pos);
+        } catch { /* ignore malformed */ }
+      }
+      const positionsPlayed = [...positionSet];
+
       return {
         playerId: player.id,
         playerName: `${player.firstName} ${player.lastName}`,
         appearances,
-        goals: playerGoals.length,
-        assists: playerAssists.length,
+        goals: goalCount,
+        assists: assistCount,
         cleanSheets,
         motmAwards: playerMotm.length,
-        outfieldMinutes: playerTime.reduce((sum, pt) => sum + pt.outfieldMinutes, 0),
-        goalkeeperMinutes: playerTime.reduce((sum, pt) => sum + pt.goalkeeperMinutes, 0),
-        totalMinutes: playerTime.reduce((sum, pt) => sum + pt.totalMinutes, 0),
+        outfieldMinutes,
+        goalkeeperMinutes,
+        totalMinutes,
+        // Derived metrics
+        goalInvolvements: goalCount + assistCount,
+        minutesPerGoal: goalCount > 0 ? Math.round(totalMinutes / goalCount) : null,
+        minutesPerAssist: assistCount > 0 ? Math.round(totalMinutes / assistCount) : null,
+        avgMinutesPerAppearance: appearances > 0 ? Math.round(totalMinutes / appearances) : 0,
+        positionsPlayed,
+        positionVariety: positionsPlayed.length,
+        gkSharePct: totalMinutes > 0 ? Math.round((goalkeeperMinutes / totalMinutes) * 100) : 0,
+        periodsPlayed,
       };
     });
 
