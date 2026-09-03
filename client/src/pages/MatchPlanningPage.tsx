@@ -49,6 +49,20 @@ interface SlotInput {
 }
 
 /**
+ * Consistent colour per quarter to help the coach orient themselves.
+ * Q1 blue, Q2 green, Q3 amber, Q4 purple (then repeats for 5+).
+ */
+const QUARTER_COLORS = [
+  { name: 'blue', tab: 'border-blue-500 text-blue-600', bg: 'bg-blue-50', dot: 'bg-blue-500', ring: 'ring-blue-400', pill: 'bg-blue-100 text-blue-700' },
+  { name: 'green', tab: 'border-emerald-500 text-emerald-600', bg: 'bg-emerald-50', dot: 'bg-emerald-500', ring: 'ring-emerald-400', pill: 'bg-emerald-100 text-emerald-700' },
+  { name: 'amber', tab: 'border-amber-500 text-amber-600', bg: 'bg-amber-50', dot: 'bg-amber-500', ring: 'ring-amber-400', pill: 'bg-amber-100 text-amber-700' },
+  { name: 'purple', tab: 'border-purple-500 text-purple-600', bg: 'bg-purple-50', dot: 'bg-purple-500', ring: 'ring-purple-400', pill: 'bg-purple-100 text-purple-700' },
+];
+function quarterColor(period: number) {
+  return QUARTER_COLORS[(period - 1) % QUARTER_COLORS.length];
+}
+
+/**
  * Match Planning Page — visual pitch-based workspace.
  * Coach can start from blank or generate, then edit freely.
  */
@@ -582,23 +596,32 @@ export function MatchPlanningPage() {
                 )}
               </div>
 
-              {/* Period tabs */}
+              {/* Period tabs — colour-coded per quarter */}
               <div className="flex border-b">
                 {Array.from({ length: totalPeriods }, (_, i) => i + 1).map(period => {
                   const periodHasSlots = allSlots.some(s => s.period === period);
+                  const qc = quarterColor(period);
+                  const isActive = activePeriod === period;
                   return (
                     <button
                       key={period}
                       onClick={() => { setActivePeriod(period); setSelectedSlotId(null); setSelectedPoolPlayer(null); }}
-                      className={`flex-1 py-3 text-center text-sm font-medium min-h-[44px] transition-colors relative ${
-                        activePeriod === period ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground'
+                      className={`flex-1 py-3 text-center text-sm font-medium min-h-[44px] transition-colors relative border-b-2 ${
+                        isActive ? qc.tab : 'border-transparent text-muted-foreground'
                       }`}
                     >
+                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 align-middle ${qc.dot}`} />
                       Q{period}
                       {periodHasSlots && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500" />}
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Active quarter banner — reinforces which quarter is being edited */}
+              <div className={`rounded-md px-3 py-2 text-sm font-medium flex items-center gap-2 ${quarterColor(activePeriod).bg}`}>
+                <span className={`w-3 h-3 rounded-full ${quarterColor(activePeriod).dot}`} />
+                Editing Quarter {activePeriod} — {formation}
               </div>
 
               {/* Period actions + formation selector */}
@@ -748,8 +771,11 @@ export function MatchPlanningPage() {
 
                       return (
                         <div key={period} className="space-y-1">
-                          <div className="flex items-center justify-between px-1">
-                            <span className="text-xs font-bold">Q{period} <span className="font-normal text-muted-foreground">{pFormation}</span></span>
+                          <div className={`flex items-center justify-between px-2 py-1 rounded-t-md ${quarterColor(period).bg}`}>
+                            <span className="text-xs font-bold flex items-center gap-1">
+                              <span className={`w-2 h-2 rounded-full ${quarterColor(period).dot}`} />
+                              Q{period} <span className="font-normal text-muted-foreground">{pFormation}</span>
+                            </span>
                             <button
                               onClick={() => { setActivePeriod(period); setViewMode('pitch'); }}
                               className="text-[10px] text-primary hover:underline print:hidden"
@@ -799,15 +825,17 @@ export function MatchPlanningPage() {
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4">
                     {/* Pitch */}
                     <div>
-                      <PitchView
-                        formation={formation}
-                        slots={pitchSlots}
-                        availablePlayers={availablePlayers}
-                        selectedSlotId={selectedSlotId}
-                        selectedPoolPlayerId={selectedPoolPlayer}
-                        onSlotTap={handleSlotTap}
-                        periodDuration={periodDuration}
-                      />
+                      <div className={`rounded-lg ring-4 ${quarterColor(activePeriod).ring}`}>
+                        <PitchView
+                          formation={formation}
+                          slots={pitchSlots}
+                          availablePlayers={availablePlayers}
+                          selectedSlotId={selectedSlotId}
+                          selectedPoolPlayerId={selectedPoolPlayer}
+                          onSlotTap={handleSlotTap}
+                          periodDuration={periodDuration}
+                        />
+                      </div>
 
                       {/* Selection hint */}
                       {(selectedSlotId || selectedPoolPlayer) && (
