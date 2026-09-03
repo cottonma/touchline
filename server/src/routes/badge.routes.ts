@@ -60,4 +60,11 @@ router.post('/award', asyncHandler(async (req, res) => {
   res.status(201).json({ data: { awarded } });
 }));
 
+// Delete a badge (admin/coach)
+router.delete('/:badgeId', asyncHandler(async (req, res) => {
+  const { badgeId } = req.params;
+  await badgeService.deleteBadge(badgeId!);
+  res.json({ data: { success: true } });
+}));
+
 export const badgeRoutes = router;

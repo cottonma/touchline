@@ -52,4 +52,15 @@ export function useAwardBadge() {
   });
 }
 
+export function useDeleteBadge() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { badgeId: string; playerId: string }) =>
+      api.delete(`/badges/${data.badgeId}`),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['badges', variables.playerId] });
+    },
+  });
+}
+
 export type { Badge, BadgeTemplate };

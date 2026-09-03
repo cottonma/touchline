@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { usePlayers } from '@/hooks/use-players';
 import { usePlayerDevelopment, useGoalLibrary, useCreateGoal, useUpdateGoalStatus, useAddObservation, useSeedLibrary } from '@/hooks/use-development';
-import { usePlayerBadges, useBadgeTemplates, useAwardBadge } from '@/hooks/use-badges';
+import { usePlayerBadges, useBadgeTemplates, useAwardBadge, useDeleteBadge } from '@/hooks/use-badges';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import type { DevelopmentGoal, DevelopmentObservation } from '@/services/development.service';
@@ -67,6 +67,7 @@ export function DevelopmentPage() {
   const addObservation = useAddObservation();
   const seedLibrary = useSeedLibrary();
   const awardBadge = useAwardBadge();
+  const deleteBadge = useDeleteBadge();
 
   // Auto-select first player (for coaches)
   useEffect(() => {
@@ -216,6 +217,13 @@ export function DevelopmentPage() {
                     return (
                       <div key={badge.id} className={`relative flex flex-col items-center text-center p-3 rounded-lg border ring-1 ${t.ring} ${t.bg}`}>
                         <span className={`absolute top-1 right-1 text-[8px] font-semibold px-1.5 py-0.5 rounded-full ${t.chip}`}>{t.label}</span>
+                        {!isParent && (
+                          <button
+                            onClick={() => { if (selectedPlayerId && confirm(`Remove "${badge.title}" badge?`)) deleteBadge.mutate({ badgeId: badge.id, playerId: selectedPlayerId }); }}
+                            className="absolute top-1 left-1 w-5 h-5 rounded-full bg-red-500/80 text-white flex items-center justify-center text-xs font-bold hover:bg-red-600 active:scale-90"
+                            title="Remove badge"
+                          >×</button>
+                        )}
                         <span className="text-3xl mb-1">{badge.emoji}</span>
                         <span className="text-xs font-medium leading-tight">{badge.title}</span>
                         <span className="text-[10px] font-semibold text-yellow-600 mt-0.5">+{badge.points} pts</span>

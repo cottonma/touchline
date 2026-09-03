@@ -83,6 +83,11 @@ export class BadgeService {
     return db.select().from(badges).where(eq(badges.clubId, clubId));
   }
 
+  /** Delete a badge by id */
+  async deleteBadge(badgeId: string) {
+    await db.delete(badges).where(eq(badges.id, badgeId));
+  }
+
   /** Check if a player already has a specific badge type (optionally within a season) */
   async hasBadge(playerId: string, badgeType: string, seasonId?: string): Promise<boolean> {
     const rows = await db.select({ id: badges.id, seasonId: badges.seasonId }).from(badges)
