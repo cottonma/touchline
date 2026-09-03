@@ -357,29 +357,36 @@ export class ReportsService {
   // === Helpers ===
 
   /**
-   * Completed match fixtures scoped to a club.
-   * Fixtures link to a club via season, so we resolve the club's seasons first.
+   * Resolve the active season id for a club. Falls back to the club's most
+   * recent season if none is explicitly marked active.
    */
-  private async getCompletedMatchFixtures(clubId?: string) {
-    let allFixtures;
-    if (clubId) {
-      const clubSeasons = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.clubId, clubId));
-      const seasonIds = new Set(clubSeasons.map((s) => s.id));
-      allFixtures = (await db.select().from(fixtures)).filter((f) => seasonIds.has(f.seasonId));
-    } else {
-      allFixtures = await db.select().from(fixtures);
-    }
-    return allFixtures.filter((f) => f.status === 'completed' && f.type !== 'training');
+  private async getActiveSeasonId(clubId: string): Promise<string | undefined> {
+    const clubSeasons = await db.select().from(seasons).where(eq(seasons.clubId, clubId));
+    if (clubSeasons.length === 0) return undefined;
+    const active = clubSeasons.find((s) => s.isActive);
+    if (active) return active.id;
+    // No active flag set — use the most recently started season
+    return [...clubSeasons].sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''))[0]?.id;
   }
 
   /**
-   * All fixtures (any status/type) scoped to a club via its seasons.
+   * Completed match fixtures for a club's active season.
+   * Excludes training, and only includes fixtures marked completed
+   * (upcoming/scheduled fixtures are never counted).
+   */
+  private async getCompletedMatchFixtures(clubId?: string) {
+    const fixtures = await this.getClubFixtures(clubId);
+    return fixtures.filter((f) => f.status === 'completed' && f.type !== 'training');
+  }
+
+  /**
+   * All fixtures for a club's active season (any status/type).
    */
   private async getClubFixtures(clubId?: string) {
     if (!clubId) return db.select().from(fixtures);
-    const clubSeasons = await db.select({ id: seasons.id }).from(seasons).where(eq(seasons.clubId, clubId));
-    const seasonIds = new Set(clubSeasons.map((s) => s.id));
-    return (await db.select().from(fixtures)).filter((f) => seasonIds.has(f.seasonId));
+    const seasonId = await this.getActiveSeasonId(clubId);
+    if (!seasonId) return [];
+    return db.select().from(fixtures).where(eq(fixtures.seasonId, seasonId));
   }
 
   /**
