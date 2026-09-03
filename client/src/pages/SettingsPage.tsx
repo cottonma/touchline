@@ -86,18 +86,40 @@ export function SettingsPage() {
               Your overall approach influences AI suggestions and team selection
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Philosophy</Label>
               <Select
-                value={getValue('philosophy', 'coaching_philosophy', 'development')}
+                value={getValue('philosophy', 'coaching_philosophy', 'balanced')}
                 onChange={(e) => handleUpdate('philosophy', 'coaching_philosophy', e.target.value)}
               >
-                <option value="development">Development First - Focus on learning and improving</option>
-                <option value="balanced">Balanced - Compete while developing all players</option>
-                <option value="competitive">Competitive - Aim to win while keeping it fair</option>
+                <option value="development">Development — players move around positions a lot</option>
+                <option value="balanced">Balanced — best-fit positions, equal minutes</option>
+                <option value="competitive">Competitive — strongest team by stats, everyone still plays</option>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Drives how the app auto-generates your team. <span className="font-medium">Development</span> spreads players across different positions. <span className="font-medium">Balanced</span> plays best-fit positions with equal minutes. <span className="font-medium">Competitive</span> weights minutes to your strongest players (from stats) but everyone still gets at least one full period. A fixture's own Match Objective overrides this for that game.
+              </p>
             </div>
+
+            {/* Development-only: positions per match target */}
+            {getValue('philosophy', 'coaching_philosophy', 'balanced') === 'development' && (
+              <div className="space-y-2">
+                <Label>Positions per player, per match (target)</Label>
+                <Select
+                  value={String(getValue('philosophy', 'development_positions_target', 2))}
+                  onChange={(e) => handleUpdate('philosophy', 'development_positions_target', Number(e.target.value))}
+                >
+                  <option value="1">1 — settle in one position</option>
+                  <option value="2">2 — try a couple of positions</option>
+                  <option value="3">3 — lots of variety</option>
+                  <option value="4">4 — maximum variety</option>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  How many different positions the app aims to give each player during a match. It's a target — it won't break other rules to force it.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

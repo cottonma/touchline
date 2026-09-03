@@ -27,8 +27,14 @@ export const DEFAULT_POLICIES: UpsertPolicyData[] = [
   {
     category: 'philosophy',
     key: 'coaching_philosophy',
-    value: JSON.stringify('development'),
+    value: JSON.stringify('balanced'),
     description: 'Overall coaching approach: development, balanced, or competitive',
+  },
+  {
+    category: 'philosophy',
+    key: 'development_positions_target',
+    value: JSON.stringify(2),
+    description: 'Development mode: target number of different positions per player per match',
   },
 
   // Playing Time
@@ -301,6 +307,19 @@ export class PolicyService {
       rotationEnabled: await this.getPolicyValue('positions', 'rotation_enabled', true),
       rotationFrequencyWeeks: await this.getPolicyValue('positions', 'rotation_frequency_weeks', 6),
       primaryPositionPriority: await this.getPolicyValue('positions', 'primary_position_priority', true),
+    };
+  }
+
+  /**
+   * Selection strategy config used by team-selection / match-plan generation.
+   * The effective strategy is: fixture match objective (if set) ?? season philosophy.
+   */
+  async getSelectionConfig() {
+    const philosophy = await this.getPolicyValue<string>('philosophy', 'coaching_philosophy', 'balanced');
+    const developmentPositionsTarget = await this.getPolicyValue<number>('philosophy', 'development_positions_target', 2);
+    return {
+      philosophy: (['development', 'balanced', 'competitive'].includes(philosophy) ? philosophy : 'balanced') as 'development' | 'balanced' | 'competitive',
+      developmentPositionsTarget,
     };
   }
 

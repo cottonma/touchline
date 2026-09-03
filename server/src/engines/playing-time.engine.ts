@@ -26,6 +26,14 @@ export interface PlayerForSelection {
   isGkVolunteer: boolean;
 }
 
+export type SelectionStrategy = 'development' | 'balanced' | 'competitive';
+
+export interface PlayerStatWeight {
+  playerId: string;
+  /** Overall objective strength for this player (higher = stronger), from season stats. */
+  score: number;
+}
+
 export interface EngineConfig {
   matchDurationMinutes: number;
   periods: number;
@@ -35,6 +43,18 @@ export interface EngineConfig {
   gkRewardFullOutfield: boolean;
   formation: string | null; // e.g. "2-3-1" — numbers are defence to attack lines
   minSubMinutes: number; // minimum minutes a player must get when subbed on/off mid-period
+  /**
+   * Selection strategy (from coach philosophy / fixture match objective):
+   * - 'balanced' (default): best-fit positions + equal minutes within tolerance
+   * - 'development': maximise position variety; equal minutes still apply
+   * - 'competitive': strongest team by objective stats, minutes weighted to
+   *   stronger players, but every player gets a minimum of one full period
+   */
+  strategy?: SelectionStrategy;
+  /** Development only: target number of DIFFERENT positions per player per match. */
+  positionsPerMatchTarget?: number;
+  /** Competitive only: objective strength per player (season stats). */
+  playerStats?: PlayerStatWeight[];
 }
 
 export interface PeriodPlayer {
@@ -174,23 +194,66 @@ export function generateSubstitutionPlan(
   // periodAssignments[periodIdx] = list of player IDs playing full period as outfield
   const periodFullAssignments: string[][] = [];
 
+  // Competitive strategy: weight slot selection toward stronger players so they
+  // play more, while guaranteeing everyone a minimum of one full period.
+  const isCompetitive = config.strategy === 'competitive';
+  const statScore = new Map<string, number>();
+  for (const w of config.playerStats ?? []) statScore.set(w.playerId, w.score);
+  // Track how many full periods each player has been given (for the min-1 floor)
+  const fullPeriodsCount = new Map<string, number>();
+  for (const p of pureOutfieldPlayers) fullPeriodsCount.set(p.id, 0);
+
   for (let periodIdx = 0; periodIdx < periods; periodIdx++) {
     const slots = slotsPerPeriod[periodIdx];
+    const periodsRemaining = periods - periodIdx; // including this one
 
-    // Sort players by accumulated minutes (ascending), then by index for stability
-    const sorted = [...pureOutfieldPlayers].sort((a, b) => {
-      const diff = (playerMinutes.get(a.id) ?? 0) - (playerMinutes.get(b.id) ?? 0);
-      if (diff !== 0) return diff;
-      return pureOutfieldPlayers.indexOf(a) - pureOutfieldPlayers.indexOf(b);
-    });
+    let assigned: string[];
 
-    // Take the `slots` players with the fewest minutes
-    const assigned = sorted.slice(0, slots).map((p) => p.id);
+    if (isCompetitive) {
+      // Everyone must get at least one full period. If a player still has zero
+      // full periods and the remaining periods are running out, force them in.
+      const mustInclude = pureOutfieldPlayers
+        .filter((p) => (fullPeriodsCount.get(p.id) ?? 0) === 0)
+        .filter((p) => {
+          // How many players still need their guaranteed period?
+          const stillNeeding = pureOutfieldPlayers.filter((q) => (fullPeriodsCount.get(q.id) ?? 0) === 0).length;
+          return stillNeeding >= periodsRemaining * slots ? true : false;
+        });
+
+      // Rank the rest by stat strength (desc), tie-break by fewer minutes so
+      // it doesn't completely starve weaker players.
+      const ranked = [...pureOutfieldPlayers].sort((a, b) => {
+        const sa = statScore.get(a.id) ?? 0;
+        const sb = statScore.get(b.id) ?? 0;
+        if (sb !== sa) return sb - sa;
+        const diff = (playerMinutes.get(a.id) ?? 0) - (playerMinutes.get(b.id) ?? 0);
+        if (diff !== 0) return diff;
+        return pureOutfieldPlayers.indexOf(a) - pureOutfieldPlayers.indexOf(b);
+      });
+
+      const picked = new Set<string>(mustInclude.map((p) => p.id));
+      for (const p of ranked) {
+        if (picked.size >= slots) break;
+        picked.add(p.id);
+      }
+      // If mustInclude exceeded slots (edge case), keep the neediest by fewest full periods
+      assigned = [...picked].slice(0, slots);
+    } else {
+      // Balanced & Development: fewest accumulated minutes first (equal-time)
+      const sorted = [...pureOutfieldPlayers].sort((a, b) => {
+        const diff = (playerMinutes.get(a.id) ?? 0) - (playerMinutes.get(b.id) ?? 0);
+        if (diff !== 0) return diff;
+        return pureOutfieldPlayers.indexOf(a) - pureOutfieldPlayers.indexOf(b);
+      });
+      assigned = sorted.slice(0, slots).map((p) => p.id);
+    }
+
     periodFullAssignments.push(assigned);
 
-    // Update accumulated minutes
+    // Update accumulated minutes and full-period counts
     for (const pid of assigned) {
       playerMinutes.set(pid, (playerMinutes.get(pid) ?? 0) + periodDuration);
+      fullPeriodsCount.set(pid, (fullPeriodsCount.get(pid) ?? 0) + 1);
     }
   }
 
@@ -209,7 +272,7 @@ export function generateSubstitutionPlan(
   const maxMinutes = Math.max(...Array.from(playerMinutes.values()));
   const imbalance = maxMinutes - minMinutes;
 
-  if (imbalance > toleranceMinutes && numPureOutfield > 0) {
+  if (!isCompetitive && imbalance > toleranceMinutes && numPureOutfield > 0) {
     // Apply mid-period substitutions to balance playing time.
     // The sub point within the period is calculated dynamically to bring both
     // the over-time player and under-time player as close to target as possible.
@@ -348,6 +411,13 @@ export function generateSubstitutionPlan(
   // --- Phase 3: Build period plans ---
   const periodPlans: PeriodPlan[] = [];
 
+  // Development strategy: track which formation slots each player has already
+  // been given, so we can steer them to DIFFERENT positions in later periods
+  // (up to their positions-per-match target).
+  const isDevelopment = config.strategy === 'development';
+  const positionsUsedByPlayer = new Map<string, Set<string>>();
+  const varietyTarget = Math.max(1, Math.min(config.positionsPerMatchTarget ?? 2, periods));
+
   for (let periodIdx = 0; periodIdx < periods; periodIdx++) {
     const periodNum = periodIdx + 1;
     const gkPlayerId = gkPeriodsMap.get(periodNum)!;
@@ -389,8 +459,22 @@ export function generateSubstitutionPlan(
     const startingOutfieldThisPeriod = [...gkPlayersOnOutfield, ...fullPeriodPlayerIds, ...partialLeavingPlayerIds]
       .slice(0, outfieldSlots); // cap to formation slot count
     const assignedPositions = formationSlots
-      ? assignFormationPositions(startingOutfieldThisPeriod, availablePlayers, formationSlots)
+      ? assignFormationPositions(
+          startingOutfieldThisPeriod,
+          availablePlayers,
+          formationSlots,
+          isDevelopment ? { positionsUsedByPlayer, varietyTarget } : undefined,
+        )
       : null;
+
+    // Development: record the positions given this period so later periods vary them
+    if (isDevelopment && assignedPositions) {
+      for (const [pid, slot] of assignedPositions) {
+        const used = positionsUsedByPlayer.get(pid) ?? new Set<string>();
+        used.add(slot);
+        positionsUsedByPlayer.set(pid, used);
+      }
+    }
 
     for (const pid of fullPeriodPlayerIds) {
       const player = availablePlayers.find((p) => p.id === pid)!;
@@ -517,9 +601,10 @@ export function generateSubstitutionPlan(
 
   // --- Phase 5: Validate constraints ---
 
-  // Check playing time tolerance for pure outfield players
+  // Check playing time tolerance for pure outfield players.
+  // Competitive intentionally allows unequal minutes, so we skip this check there.
   const outfieldOnlyPlayers = summary.filter((s) => s.gkMinutes === 0);
-  if (outfieldOnlyPlayers.length > 0) {
+  if (!isCompetitive && outfieldOnlyPlayers.length > 0) {
     const minTime = Math.min(...outfieldOnlyPlayers.map((s) => s.outfieldMinutes));
     const maxTime = Math.max(...outfieldOnlyPlayers.map((s) => s.outfieldMinutes));
     if (maxTime - minTime > toleranceMinutes) {
@@ -530,8 +615,11 @@ export function generateSubstitutionPlan(
   }
 
   // Check consecutive bench rule
-  // A player is "benched" for a period only if they play 0 minutes in that period
+  // A player is "benched" for a period only if they play 0 minutes in that period.
+  // Competitive intentionally gives weaker players less time (min one full period),
+  // so the consecutive-bench cap does not apply in that mode.
   for (const player of availablePlayers) {
+    if (isCompetitive) break;
     if (gkPlayerIds.has(player.id)) continue; // GK players handled differently
 
     let maxConsec = 0;
@@ -634,10 +722,26 @@ function assignFormationPositions(
   playerIds: string[],
   allPlayers: PlayerForSelection[],
   formationSlots: string[],
+  variety?: { positionsUsedByPlayer: Map<string, Set<string>>; varietyTarget: number },
 ): Map<string, string> {
   const assignments = new Map<string, string>();
   const unassignedPlayers = new Set(playerIds);
   const unfilledSlots = [...formationSlots];
+
+  // Development variety: bonus for giving a player a slot they haven't had yet
+  // this match (only while they're still below their variety target).
+  function varietyBonus(playerId: string, slot: string): number {
+    if (!variety) return 0;
+    const used = variety.positionsUsedByPlayer.get(playerId);
+    if (!used || used.size >= variety.varietyTarget) return 0;
+    // Reward a NEW position (one not yet used) — treat by slot category so
+    // e.g. moving from LB to RB still counts, but LB→CM counts more.
+    const usedCats = new Set([...used].map((s) => SLOT_CATEGORY[s] ?? 'midfield'));
+    const slotCat = SLOT_CATEGORY[slot] ?? 'midfield';
+    if (!used.has(slot) && !usedCats.has(slotCat)) return 30; // brand-new zone
+    if (!used.has(slot)) return 15; // new slot, same zone
+    return 0;
+  }
 
   // Score how well a player fits a slot (higher = better fit)
   // In grassroots, positions on the same line are essentially interchangeable:
@@ -662,6 +766,31 @@ function assignFormationPositions(
       if (terCat === slotCat) return 50;
     }
     return 10; // No match at all — different zone entirely
+  }
+
+  // Development variety mode: greedy assignment scoring fit + variety bonus, so
+  // players get positions they're eligible for but preferably NEW ones each period.
+  if (variety) {
+    // Build all (player, slot) pairs scored, then greedily assign best pairs.
+    while (unfilledSlots.length > 0 && unassignedPlayers.size > 0) {
+      let best: { pid: string; slot: string; slotIdx: number; score: number } | null = null;
+      for (let i = 0; i < unfilledSlots.length; i++) {
+        const slot = unfilledSlots[i];
+        for (const pid of unassignedPlayers) {
+          const score = fitScore(pid, slot) + varietyBonus(pid, slot);
+          if (!best || score > best.score) best = { pid, slot, slotIdx: i, score };
+        }
+      }
+      if (!best) break;
+      assignments.set(best.pid, best.slot);
+      unassignedPlayers.delete(best.pid);
+      unfilledSlots.splice(best.slotIdx, 1);
+    }
+    // Any leftovers get whatever slot remains
+    for (const pid of unassignedPlayers) {
+      if (unfilledSlots.length > 0) assignments.set(pid, unfilledSlots.shift()!);
+    }
+    return assignments;
   }
 
   // Greedy assignment: for each slot, pick the best-fitting unassigned player

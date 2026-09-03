@@ -15,6 +15,24 @@ import { playerRepository } from '../repositories/player.repository.js';
 import { availabilityRepository } from '../repositories/availability.repository.js';
 import { fixtureRepository } from '../repositories/fixture.repository.js';
 import { policyService } from './policy.service.js';
+import { statisticsService } from './statistics.service.js';
+
+/**
+ * Objective strength score per player from season stats (goal involvements +
+ * clean-sheet periods). Used by the 'competitive' strategy. Returns [] when
+ * there is little/no data so the engine falls back to best-fit selection.
+ */
+async function computePlayerStatScores(clubId: string | undefined): Promise<{ playerId: string; score: number }[]> {
+  const stats = await statisticsService.getPlayerSeasonStats(undefined, clubId);
+  // Meaningful data threshold: need some recorded output to rank on.
+  const anyData = stats.some((s) => s.goalInvolvements > 0 || s.cleanSheets > 0);
+  if (!anyData) return [];
+  return stats.map((s) => ({
+    playerId: s.playerId,
+    // Simple objective blend: goal involvements + clean-sheet periods.
+    score: s.goalInvolvements * 2 + s.cleanSheets,
+  }));
+}
 
 export interface MatchPlanRow {
   id: string;
@@ -224,8 +242,16 @@ export class MatchPlanService {
     // Read policies
     const playingTimeConfig = await policyService.getPlayingTimeConfig();
     const gkConfig = await policyService.getGoalkeeperConfig();
+    const selectionConfig = await policyService.getSelectionConfig();
 
-    const formatConfig = MATCH_FORMATS[`${plan.outfieldSlots + 1}v${plan.outfieldSlots + 1}` as keyof typeof MATCH_FORMATS];
+    // Effective strategy: fixture match objective overrides the season philosophy.
+    const fixtureObjective = fixture.matchObjective as ('development' | 'balanced' | 'competitive' | null | undefined);
+    const strategy = (fixtureObjective && ['development', 'balanced', 'competitive'].includes(fixtureObjective))
+      ? fixtureObjective
+      : selectionConfig.philosophy;
+
+    // Competitive needs objective stat scores; falls back to best-fit if no data.
+    const playerStats = strategy === 'competitive' ? await computePlayerStatScores(clubId) : undefined;
 
     const engineConfig: EngineConfig = {
       matchDurationMinutes: plan.matchDurationMinutes,
@@ -236,7 +262,15 @@ export class MatchPlanService {
       gkRewardFullOutfield: gkConfig.gkRewardFullOutfield,
       formation: plan.formation,
       minSubMinutes: playingTimeConfig.minSubMinutes ?? 5,
+      strategy,
+      positionsPerMatchTarget: selectionConfig.developmentPositionsTarget,
+      // If competitive but no data yet, treat as balanced-style best-fit (empty stats)
+      playerStats: playerStats && playerStats.length > 0 ? playerStats : undefined,
     };
+    // Cold-start: competitive with no stats behaves like balanced (best-fit, equal minutes)
+    if (strategy === 'competitive' && (!playerStats || playerStats.length === 0)) {
+      engineConfig.strategy = 'balanced';
+    }
 
     if (availablePlayers.length < plan.outfieldSlots + 1) {
       return { success: false, error: { code: 'NOT_ENOUGH_PLAYERS', message: `Need at least ${plan.outfieldSlots + 1} players.` } };

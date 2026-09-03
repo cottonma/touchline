@@ -696,3 +696,31 @@ Team Captain (shouts instructions/organises), Encourager, Great Support Play, Ne
 ### Data model
 
 Added `tier`, `points`, and `season_id` to the badges table. Award points/tier come from server-side definitions (the client only sends the badge type), so values can't be tampered with.
+
+---
+
+## Coaching Philosophy Now Drives Team Selection
+
+Previously the philosophy / match objective settings were inert (only the AI chat used philosophy). They now actually change the auto-generated team via three selection strategies in the playing-time engine.
+
+### Effective strategy
+
+`fixture.matchObjective` (if set) overrides the season `philosophy`. Resolved in `match-plan.service.generatePlan`.
+
+### The three strategies
+
+- **Balanced** (default): best-fit positions + equal minutes within tolerance. Unchanged from prior behaviour.
+- **Development**: maximises position variety. A coach preference `development_positions_target` (1–4, default 2) sets how many different positions to aim to give each player per match. Equal minutes still apply. A variety-scoring pass in `assignFormationPositions` steers players to new positions/zones they haven't had yet this match, among positions they're eligible for. GK stays separate (volunteers only).
+- **Competitive**: strongest team by objective stats. Slot selection is weighted by a per-player score (goal involvements × 2 + clean-sheet periods). Minute-balancing is relaxed, but every available player is guaranteed at least one full period (never zero). The tolerance and consecutive-bench validations are skipped in this mode since unequal minutes are intended.
+
+### Cold-start safety
+
+Competitive needs data. When a club has no meaningful stats yet (no goals/assists/clean sheets), competitive falls back to Balanced (best-fit, equal minutes) so it never produces a noisy team from thin data. Stat-weighting phases in as the season progresses.
+
+### Guardrails (all modes)
+
+GK volunteers only, max GK periods per match, GK plays full outfield in non-GK periods, min sub minutes, and players only ever placed in positions they're listed for.
+
+### Not in this change (future follow-ups)
+
+Season-long GK rotation history, cross-match minute compensation, and the equal-time on/off toggle remain unwired. The Position Rotation settings card (rotation enabled/frequency, prioritise primary position) is now superseded by the philosophy modes and its values are not read by the engine.
