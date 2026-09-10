@@ -3,6 +3,8 @@ import type { Request as ExpressRequest } from 'express';
 import { playerService } from '../services/player.service.js';
 import { createPlayerSchema, updatePlayerSchema } from '../validation/player.validation.js';
 import { getClubId } from '../middleware/team-context.js';
+import { db } from '../db/index.js';
+import { clubs } from '../db/schema.js';
 
 // Use a simpler request type that doesn't cause issues with params
 type Request = ExpressRequest<{ id?: string }>;
@@ -25,7 +27,13 @@ export class PlayerController {
     // This never leaks other clubs — the fallback is the user's own club.
     const headerClubId = getClubId(req);
     const userClubId = req.user?.clubIds?.[0];
-    const clubId = headerClubId ?? userClubId;
+    let clubId = headerClubId ?? userClubId;
+    // Last resort (e.g. admin with no linked club): use the first club, matching
+    // how the dashboard/stats endpoints fall back.
+    if (!clubId) {
+      const [firstClub] = await db.select({ id: clubs.id }).from(clubs).limit(1);
+      clubId = firstClub?.id;
+    }
     if (!clubId) {
       res.json({ data: [], count: 0 });
       return;
