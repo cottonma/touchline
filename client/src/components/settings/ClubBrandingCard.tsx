@@ -45,7 +45,7 @@ export function ClubBrandingCard() {
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const max = 256;
+        const max = 200;
         const scale = Math.min(1, max / Math.max(img.width, img.height));
         const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
         const canvas = document.createElement('canvas');
@@ -53,7 +53,21 @@ export function ClubBrandingCard() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         ctx.drawImage(img, 0, 0, w, h);
-        setBadgeUrl(canvas.toDataURL('image/png'));
+        // PNG preserves transparency for crests. This is comfortably under the limit at 200px.
+        let dataUrl = canvas.toDataURL('image/png');
+        // Safety: if somehow still very large, fall back to a JPEG (white bg) to shrink further.
+        if (dataUrl.length > 900_000) {
+          const jpg = document.createElement('canvas');
+          jpg.width = w; jpg.height = h;
+          const jctx = jpg.getContext('2d');
+          if (jctx) {
+            jctx.fillStyle = '#ffffff';
+            jctx.fillRect(0, 0, w, h);
+            jctx.drawImage(img, 0, 0, w, h);
+            dataUrl = jpg.toDataURL('image/jpeg', 0.85);
+          }
+        }
+        setBadgeUrl(dataUrl);
       };
       img.src = reader.result as string;
     };
