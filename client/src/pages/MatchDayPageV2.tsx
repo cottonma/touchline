@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Trophy, Check, Plus, Trash2, Eye } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Trophy, Check, Plus, Trash2, Eye, Play, Pause, SkipForward, Goal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,6 +64,14 @@ export function MatchDayPageV2() {
   const [error, setError] = useState<string | null>(null);
   const [motmTally, setMotmTally] = useState<{ totalVotes: number; results: { playerId: string; playerName: string; votes: number }[] } | null>(null);
 
+  // --- Live match stopwatch state ---
+  const [clockRunning, setClockRunning] = useState(false);
+  const [livePeriod, setLivePeriod] = useState(1);          // which quarter is live
+  const [elapsedSec, setElapsedSec] = useState(0);          // seconds elapsed in current quarter
+  const startRef = useRef<number | null>(null);             // timestamp (ms) when the clock was last started
+  const baseSecRef = useRef(0);                             // seconds accumulated before the current run
+  const [assistPromptScorer, setAssistPromptScorer] = useState<string | null>(null); // player awaiting assist choice
+
   const { data: fixtures } = useFixtures({ status: 'scheduled' });
   const { data: completedFixtures } = useFixtures({ status: 'completed' });
   const { data: players } = usePlayers();
@@ -94,6 +102,14 @@ export function MatchDayPageV2() {
     setLoading(true);
     setError(null);
     setCompleted(false);
+    // Reset the live stopwatch when switching fixtures
+    setClockRunning(false);
+    setLivePeriod(1);
+    setElapsedSec(0);
+    startRef.current = null;
+    baseSecRef.current = 0;
+    setAssistPromptScorer(null);
+    setGoalEntries([]);
     api.get<{ data: { plan: MatchPlan; slots: SlotData[] } }>(`/match-plans/${selectedFixtureId}`)
       .then(res => {
         setPlan(res.data.plan);
@@ -150,6 +166,62 @@ export function MatchDayPageV2() {
   const periodSideValue = (ps: PeriodScore, side: 'home' | 'away'): number => {
     if (!isAway) return side === 'home' ? ps.goalsFor : ps.goalsAgainst;
     return side === 'home' ? ps.goalsAgainst : ps.goalsFor;
+  };
+
+  // --- Live stopwatch: tick from a stored start time so it survives screen sleep ---
+  useEffect(() => {
+    if (!clockRunning) return;
+    const tick = () => {
+      const now = Date.now();
+      const runElapsed = startRef.current ? Math.floor((now - startRef.current) / 1000) : 0;
+      setElapsedSec(baseSecRef.current + runElapsed);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [clockRunning]);
+
+  const startClock = () => {
+    startRef.current = Date.now();
+    setClockRunning(true);
+  };
+  const pauseClock = () => {
+    // Bank the elapsed seconds so resuming continues accurately
+    if (startRef.current) {
+      baseSecRef.current += Math.floor((Date.now() - startRef.current) / 1000);
+    }
+    startRef.current = null;
+    setClockRunning(false);
+  };
+  const endQuarter = () => {
+    // Stop the clock and advance to the next quarter, resetting the timer
+    startRef.current = null;
+    baseSecRef.current = 0;
+    setElapsedSec(0);
+    setClockRunning(false);
+    setLivePeriod(p => Math.min(p + 1, totalPeriods));
+  };
+
+  const quarterSeconds = periodDuration * 60;
+  const clockDisplay = `${String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:${String(elapsedSec % 60).padStart(2, '0')}`;
+  const quarterTimeReached = elapsedSec >= quarterSeconds && quarterSeconds > 0;
+
+  // Players on the pitch during the live quarter (from the plan slots)
+  const livePitchPlayers = useMemo(() => {
+    const ids = new Set(slots.filter(s => s.period === livePeriod).map(s => s.playerId));
+    return availablePlayers.filter(p => ids.has(p.id));
+  }, [slots, livePeriod, availablePlayers]);
+
+  // --- Live goal recording ---
+  const currentMatchMinute = () => Math.round((livePeriod - 1) * periodDuration + elapsedSec / 60);
+
+  const recordGoalForUs = (scorerId: string, assistId?: string) => {
+    setGoalEntries(prev => [...prev, { scorerId, assistId, period: livePeriod }]);
+    setPeriodScores(prev => prev.map(ps => ps.period === livePeriod ? { ...ps, goalsFor: ps.goalsFor + 1 } : ps));
+    setAssistPromptScorer(null);
+  };
+  const recordGoalAgainst = () => {
+    setPeriodScores(prev => prev.map(ps => ps.period === livePeriod ? { ...ps, goalsAgainst: ps.goalsAgainst + 1 } : ps));
   };
 
   // Complete match
@@ -213,6 +285,107 @@ export function MatchDayPageV2() {
         <div className="text-center py-12 text-muted-foreground">Loading match plan...</div>
       ) : plan && !completed ? (
         <>
+          {/* ── STICKY LIVE STOPWATCH BAR ── */}
+          <div className="sticky top-0 z-30 -mx-4 px-4 py-2 bg-background/95 backdrop-blur border-b shadow-sm">
+            <div className="flex items-center gap-2">
+              {/* Clock + quarter */}
+              <div className="flex flex-col leading-none">
+                <span className={`text-lg font-bold tabular-nums ${quarterTimeReached ? 'text-amber-600' : ''}`}>{clockDisplay}</span>
+                <span className="text-[10px] text-muted-foreground">Q{livePeriod} / {periodDuration}:00</span>
+              </div>
+              {/* Score (home – away) */}
+              <div className="flex-1 text-center">
+                <span className="text-sm font-bold tabular-nums">
+                  {(isAway ? totalGoalsAgainst : totalGoalsFor)} – {(isAway ? totalGoalsFor : totalGoalsAgainst)}
+                </span>
+                <p className="text-[9px] text-muted-foreground truncate">
+                  {isAway ? selectedFixture?.opponent : clubName} v {isAway ? clubName : selectedFixture?.opponent}
+                </p>
+              </div>
+              {/* Controls */}
+              {!clockRunning ? (
+                <Button size="sm" className="h-9" onClick={startClock}>
+                  <Play className="h-4 w-4" /> {elapsedSec > 0 ? 'Resume' : 'Start'}
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="h-9" onClick={pauseClock}>
+                  <Pause className="h-4 w-4" /> Pause
+                </Button>
+              )}
+              {livePeriod < totalPeriods && (
+                <Button size="sm" variant="ghost" className="h-9" onClick={endQuarter} title="End quarter and move to the next">
+                  <SkipForward className="h-4 w-4" /> Q{livePeriod + 1}
+                </Button>
+              )}
+            </div>
+            {quarterTimeReached && clockRunning && (
+              <p className="text-[10px] text-amber-600 text-center mt-1">Quarter time reached — tap Q{Math.min(livePeriod + 1, totalPeriods)} to move on</p>
+            )}
+          </div>
+
+          {/* ── LIVE TEAM PANEL: tap a player to record a goal ── */}
+          <Card>
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Goal className="h-4 w-4 text-emerald-600" /> On the pitch — Q{livePeriod}
+              </CardTitle>
+              <p className="text-[10px] text-muted-foreground">Tap a player to record their goal. Then choose an assister or "No assist".</p>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 space-y-2">
+              {assistPromptScorer ? (
+                /* Assist chooser */
+                <div className="space-y-2">
+                  <p className="text-xs font-medium">
+                    Assist for {livePitchPlayers.find(p => p.id === assistPromptScorer)?.firstName ?? 'goal'}?
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {livePitchPlayers.filter(p => p.id !== assistPromptScorer).map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => recordGoalForUs(assistPromptScorer, p.id)}
+                        className="px-2.5 py-1.5 rounded-md border text-xs bg-emerald-50 hover:bg-emerald-100 active:scale-95"
+                      >
+                        {p.firstName}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => recordGoalForUs(assistPromptScorer)}
+                      className="px-2.5 py-1.5 rounded-md border text-xs bg-muted hover:bg-accent active:scale-95"
+                    >
+                      No assist
+                    </button>
+                    <button
+                      onClick={() => setAssistPromptScorer(null)}
+                      className="px-2 py-1.5 rounded-md text-xs text-muted-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-1.5">
+                    {livePitchPlayers.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">No plan for this quarter.</span>
+                    ) : livePitchPlayers.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setAssistPromptScorer(p.id)}
+                        className="px-2.5 py-1.5 rounded-md border text-xs font-medium hover:bg-emerald-50 active:scale-95"
+                        title="Record a goal for this player"
+                      >
+                        ⚽ {p.firstName} {p.lastName.charAt(0)}
+                      </button>
+                    ))}
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full h-9 text-xs" onClick={recordGoalAgainst}>
+                    Goal against ({selectedFixture?.opponent ?? 'opposition'})
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Match header */}
           <Card>
             <CardContent className="p-4">

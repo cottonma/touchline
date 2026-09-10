@@ -724,3 +724,21 @@ GK volunteers only, max GK periods per match, GK plays full outfield in non-GK p
 ### Not in this change (future follow-ups)
 
 Season-long GK rotation history, cross-match minute compensation, and the equal-time on/off toggle remain unwired. The Position Rotation settings card (rotation enabled/frequency, prioritise primary position) is now superseded by the philosophy modes and its values are not read by the engine.
+
+---
+
+## Match Day: Live Stopwatch & Quick Goal Recording
+
+Match Day gained a live-match companion for pitchside use.
+
+### Sticky stopwatch bar (always visible)
+
+A bar pinned to the top of Match Day shows the running clock (MM:SS), the current quarter and quarter length, the live score (home – away), and Start/Pause + "End Quarter" controls. The clock is driven from a stored start-timestamp (not a naive interval) so it stays accurate if the phone sleeps or the coach scrolls/navigates. "End Quarter" advances to the next quarter and resets the timer; a nudge appears when the quarter's time is reached (manual advance — real quarters run long/short).
+
+### Live team panel + tap-to-record
+
+Below the bar, the current quarter's on-pitch players (from the plan) show as tappable chips. Tapping a player records their goal and then prompts for an assister (their on-pitch teammates + a "No assist" option) — one or two taps. A "Goal against" button increments the opposition's quarter score. Live goals feed the existing quarter scores and Goals & Assists list, capturing scorer, assister, quarter and match minute automatically, so by full-time the coach just taps Complete.
+
+### Design choice
+
+Option A (sticky bar + scrollable live team) over a separate full-screen mode — the timer is always visible while the rest of the record page stays accessible below. Only players actually on the pitch are shown for scoring, preventing mis-credits.
