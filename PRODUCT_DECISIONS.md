@@ -742,3 +742,26 @@ Below the bar, the current quarter's on-pitch players (from the plan) show as ta
 ### Design choice
 
 Option A (sticky bar + scrollable live team) over a separate full-screen mode — the timer is always visible while the rest of the record page stays accessible below. Only players actually on the pitch are shown for scoring, preventing mis-credits.
+
+---
+
+## Shareable Player Cards
+
+A FIFA/Sportradar-flavoured "Player Card" that parents can view and screenshot/save.
+
+### Design
+
+Portrait hero card in club-derived accent colours (a deterministic gradient per player name, since we have no photos — a coloured initials avatar is used). Layout: club + big **Trophy Points** headline (earned, never a subjective rating), name/position/shirt, a 3×2 grid of achievement stat tiles (goals, assists, apps, minutes, clean sheets, MOTM), positions-played chips, the tiered trophy-cabinet badges as medals, a last-5 form strip, and Touchline footer branding.
+
+### Principle
+
+Deliberately NOT a FIFA-style ability rating. The big number is Trophy Points and the stats are things that actually happened, so it looks premium and collectible without rating or ranking children. Effort/character badges mean a non-scorer still has a rich card.
+
+### Save as image
+
+One-tap "Save card as image" renders the card to a canvas and downloads a PNG — no html-to-image dependency added. Parents get a clean branded image to forward rather than a raw screenshot.
+
+### Placement
+
+- Coach: Statistics → new "Cards" tab with a player picker.
+- Parent portal: their child's card shown at the top automatically.

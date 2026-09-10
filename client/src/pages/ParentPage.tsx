@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatScoreline } from '@/lib/utils';
+import { PlayerCard } from '@/components/PlayerCard';
+import { usePlayerStats } from '@/hooks/use-statistics';
 
 interface Player {
   id: string;
@@ -45,6 +47,8 @@ interface MotmVote {
  */
 export function ParentPage() {
   const { user } = useAuth();
+  const { data: allSeasonStats } = usePlayerStats();
+  const [clubName, setClubName] = useState('Our Team');
   const [child, setChild] = useState<Player | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -136,6 +140,14 @@ export function ParentPage() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    api.get<any[]>('/auth/clubs').then((clubs) => {
+      const active = localStorage.getItem('touchline_active_club');
+      const club = clubs.find((c: any) => c.id === active) ?? clubs[0];
+      if (club) setClubName(club.name || 'Our Team');
+    }).catch(() => {});
+  }, []);
+
   const handleAvailability = async (fixtureId: string, status: 'available' | 'unavailable') => {
     setSavingAvailability(fixtureId);
     try {
@@ -204,6 +216,27 @@ export function ParentPage() {
           )}
         </div>
       </div>
+
+      {/* Player Card — shareable hero card */}
+      {child && (
+        <PlayerCard
+          data={{
+            playerId: child.id,
+            name: `${child.firstName} ${child.lastName}`,
+            shirtNumber: child.shirtNumber,
+            position: child.primaryPosition,
+            clubName,
+            stats: (allSeasonStats ?? []).find((s) => s.playerId === child.id) ?? null,
+            recentResults: completedFixtures
+              .slice(0, 5)
+              .map((f) => {
+                const rd = matchResultsData[f.id];
+                const mr = rd?.data?.result ?? rd?.result ?? rd?.data ?? rd;
+                return { result: mr?.result ?? null };
+              }),
+          }}
+        />
+      )}
 
       {/* Section 1: Upcoming Fixtures */}
       <Card>

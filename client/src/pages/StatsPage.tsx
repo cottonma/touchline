@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Trophy, TrendingUp, ChevronDown } from 'lucide-react';
+import { api } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { usePlayerStats, useTeamStats, useMatchResults } from '@/hooks/use-statistics';
 import type { PlayerSeasonStats } from '@/services/statistics.service';
 import { formatScoreline } from '@/lib/utils';
+import { PlayerCard } from '@/components/PlayerCard';
+import { usePlayers } from '@/hooks/use-players';
 
-type Tab = 'team' | 'players' | 'results';
+type Tab = 'team' | 'players' | 'results' | 'cards';
 
 /**
  * Statistics page - player and team stats from recorded match data.
@@ -29,7 +32,7 @@ export function StatsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-muted p-1">
-        {(['team', 'players', 'results'] as Tab[]).map((t) => (
+        {(['team', 'players', 'results', 'cards'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -49,6 +52,7 @@ export function StatsPage() {
           {tab === 'team' && teamStats && <TeamStatsView stats={teamStats} />}
           {tab === 'players' && playerStats && <PlayerStatsView stats={playerStats} periods={teamStats?.periods} />}
           {tab === 'results' && results && <ResultsView results={results} />}
+          {tab === 'cards' && <PlayerCardsView stats={playerStats ?? []} results={results ?? []} />}
         </>
       )}
     </div>
@@ -285,6 +289,61 @@ function ResultsView({ results }: { results: { fixtureId: string; date: string; 
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function PlayerCardsView({ stats, results }: { stats: PlayerSeasonStats[]; results: { result: string | null }[] }) {
+  const { data: players } = usePlayers();
+  const [clubName, setClubName] = useState('Our Team');
+  const [selectedId, setSelectedId] = useState<string>('');
+
+  // Club name for the card header
+  useEffect(() => {
+    api.get<any[]>('/auth/clubs').then((clubs) => {
+      const active = localStorage.getItem('touchline_active_club');
+      const club = clubs.find((c: any) => c.id === active) ?? clubs[0];
+      if (club) setClubName(club.name || 'Our Team');
+    }).catch(() => {});
+  }, []);
+
+  const activePlayers = (players ?? []).filter((p) => p.isActive);
+  const chosen = selectedId || activePlayers[0]?.id || '';
+  const player = activePlayers.find((p) => p.id === chosen);
+  const playerStat = stats.find((s) => s.playerId === chosen) ?? null;
+
+  if (activePlayers.length === 0) {
+    return <EmptyStats message="No players yet. Add players to create their cards." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Player:</span>
+        <select
+          value={chosen}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm flex-1 max-w-xs"
+        >
+          {activePlayers.map((p) => (
+            <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+          ))}
+        </select>
+      </div>
+
+      {player && (
+        <PlayerCard
+          data={{
+            playerId: player.id,
+            name: `${player.firstName} ${player.lastName}`,
+            shirtNumber: player.shirtNumber,
+            position: player.primaryPosition,
+            clubName,
+            stats: playerStat,
+            recentResults: results,
+          }}
+        />
+      )}
     </div>
   );
 }
