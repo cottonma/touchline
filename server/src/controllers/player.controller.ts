@@ -20,8 +20,12 @@ export class PlayerController {
    */
   async getAll(req: Request, res: Response): Promise<void> {
     const includeInactive = req.query.includeInactive === 'true';
-    const clubId = getClubId(req);
-    // If no club context, return empty rather than leaking all clubs' players
+    // Prefer the selected club header; fall back to the authenticated user's
+    // own club so pages that fetch players before the header is set still work.
+    // This never leaks other clubs — the fallback is the user's own club.
+    const headerClubId = getClubId(req);
+    const userClubId = req.user?.clubIds?.[0];
+    const clubId = headerClubId ?? userClubId;
     if (!clubId) {
       res.json({ data: [], count: 0 });
       return;

@@ -312,6 +312,9 @@ function PlayerCardsView({ stats, results }: { stats: PlayerSeasonStats[]; resul
   const player = activePlayers.find((p) => p.id === chosen);
   const playerStat = stats.find((s) => s.playerId === chosen) ?? null;
 
+  if (players === undefined) {
+    return <div className="text-muted-foreground py-8 text-center">Loading players...</div>;
+  }
   if (activePlayers.length === 0) {
     return <EmptyStats message="No players yet. Add players to create their cards." />;
   }
