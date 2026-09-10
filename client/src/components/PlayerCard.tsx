@@ -54,6 +54,29 @@ function shade(hex: string, factor: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
+/** A small progress ring (SVG) for the analytical card visuals. */
+function Ring({ label, sub, pct, caption }: { label: string; sub: string; pct: number; caption: string }) {
+  const r = 26;
+  const circ = 2 * Math.PI * r;
+  const dash = (Math.max(0, Math.min(100, pct)) / 100) * circ;
+  return (
+    <div className="bg-white/12 rounded-lg p-2 flex items-center gap-2.5 backdrop-blur-sm">
+      <svg width="60" height="60" viewBox="0 0 60 60" className="shrink-0">
+        <circle cx="30" cy="30" r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="6" />
+        <circle
+          cx="30" cy="30" r={r} fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={`${dash} ${circ}`} transform="rotate(-90 30 30)"
+        />
+        <text x="30" y="34" textAnchor="middle" fontSize="14" fontWeight="800" fill="#fff">{sub}</text>
+      </svg>
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-wide leading-tight">{label}</p>
+        <p className="text-[9px] opacity-75 leading-tight">{caption}</p>
+      </div>
+    </div>
+  );
+}
+
 export function PlayerCard({ data }: { data: PlayerCardData }) {
   const { data: badges } = usePlayerBadges(data.playerId);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -66,20 +89,58 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
   const crest = data.crestUrl || null;
   const s = data.stats;
 
-  const statTiles: { label: string; value: number | string; icon: string }[] = [
-    { label: 'Goals', value: s?.goals ?? 0, icon: '⚽' },
-    { label: 'Assists', value: s?.assists ?? 0, icon: '🅰️' },
-    { label: 'Apps', value: s?.appearances ?? 0, icon: '👕' },
-    { label: 'Minutes', value: s?.totalMinutes ?? 0, icon: '⏱️' },
-    { label: 'Clean Sheets', value: s?.cleanSheets ?? 0, icon: '🧤' },
-    { label: 'MOTM', value: s?.motmAwards ?? 0, icon: '🏆' },
+  // ── Analytical derivations ────────────────────────────────
+  const goals = s?.goals ?? 0;
+  const assists = s?.assists ?? 0;
+  const involvements = s?.goalInvolvements ?? goals + assists;
+  const apps = s?.appearances ?? 0;
+  const totalMins = s?.totalMinutes ?? 0;
+  const cleanSheets = s?.cleanSheets ?? 0;
+  const periodsPlayed = s?.periodsPlayed ?? 0;
+
+  // Ring 1: progress toward the next goal-involvement milestone (5/10/15/20)
+  const goalMilestones = [5, 10, 15, 20, 30, 40];
+  const nextGoalTarget = goalMilestones.find((m) => m > goals) ?? (goals + 5);
+  const prevGoalBase = goalMilestones.filter((m) => m <= goals).pop() ?? 0;
+  const goalRingPct = nextGoalTarget > prevGoalBase
+    ? Math.min(100, Math.round(((goals - prevGoalBase) / (nextGoalTarget - prevGoalBase)) * 100))
+    : 0;
+
+  // Ring 2: clean-sheet rate — clean-sheet periods as a share of periods played
+  const csRatePct = periodsPlayed > 0 ? Math.min(100, Math.round((cleanSheets / periodsPlayed) * 100)) : 0;
+
+  // Contribution split (goals vs assists)
+  const goalPct = involvements > 0 ? Math.round((goals / involvements) * 100) : 0;
+
+  // Pundit-style insight lines (only include ones that are meaningful)
+  const insights: string[] = [];
+  if (goals > 0 && s?.minutesPerGoal) insights.push(`⚽ A goal every ${s.minutesPerGoal} mins on the pitch`);
+  if (involvements > 0) insights.push(`🎯 ${involvements} goal involvement${involvements === 1 ? '' : 's'} (${goals}G, ${assists}A)`);
+  if ((s?.positionVariety ?? 0) >= 2) insights.push(`🔄 Played ${s!.positionVariety} different positions`);
+  if (cleanSheets > 0) insights.push(`🧤 Clean sheet in ${cleanSheets} ${cleanSheets === 1 ? 'period' : 'periods'}`);
+  if (apps > 0) insights.push(`⏱️ Averages ${s?.avgMinutesPerAppearance ?? Math.round(totalMins / apps)} mins per game`);
+  if ((s?.motmAwards ?? 0) > 0) insights.push(`🏆 Man of the Match ${s!.motmAwards}×`);
+  const topInsights = insights.slice(0, 3);
+
+  // Compact "by the numbers" footer figures
+  const numbers: { label: string; value: number | string }[] = [
+    { label: 'Apps', value: apps },
+    { label: 'Goals', value: goals },
+    { label: 'Assists', value: assists },
+    { label: 'Mins', value: totalMins },
+    { label: 'CS', value: cleanSheets },
+    { label: 'MOTM', value: s?.motmAwards ?? 0 },
   ];
 
   const topBadges = [...(badges ?? [])].sort((a, b) => (b.points ?? 0) - (a.points ?? 0)).slice(0, 6);
   const positions = s?.positionsPlayed ?? [];
   const form = (data.recentResults ?? []).slice(0, 5);
 
-  const saveImage = () => downloadCardImage(data, trophyPoints, statTiles, topBadges, positions, form, accent, crest);
+  const saveImage = () => downloadCardImage(
+    data, trophyPoints,
+    { goals, assists, involvements, goalPct, goalRingPct, nextGoalTarget, csRatePct, insights: topInsights, numbers },
+    topBadges, positions, form, accent, crest,
+  );
 
   return (
     <div className="space-y-3">
@@ -137,15 +198,38 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
             </div>
           </div>
 
-          {/* Stat tiles */}
-          <div className="grid grid-cols-3 gap-2">
-            {statTiles.map((t) => (
-              <div key={t.label} className="bg-white/15 rounded-lg p-2 text-center backdrop-blur-sm">
-                <p className="text-lg font-black leading-none tabular-nums">{t.value}</p>
-                <p className="text-[9px] uppercase tracking-wide opacity-80 mt-1">{t.icon} {t.label}</p>
-              </div>
-            ))}
+          {/* Analytical: headline rings */}
+          <div className="grid grid-cols-2 gap-2">
+            <Ring label="Goals" sub={`${goals} / ${nextGoalTarget}`} pct={goalRingPct} caption="to next milestone" />
+            <Ring label="Clean sheets" sub={`${csRatePct}%`} pct={csRatePct} caption="of periods played" />
           </div>
+
+          {/* Contribution split: goals vs assists */}
+          {involvements > 0 && (
+            <div>
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest opacity-80 mb-1">
+                <span>Attacking contribution</span>
+                <span>{involvements} G+A</span>
+              </div>
+              <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-white/20">
+                <div className="h-full bg-white" style={{ width: `${goalPct}%` }} />
+                <div className="h-full bg-white/50" style={{ width: `${100 - goalPct}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-[9px] opacity-80 mt-1">
+                <span>⚽ {goals} goals</span>
+                <span>🅰️ {assists} assists</span>
+              </div>
+            </div>
+          )}
+
+          {/* Pundit-style insights */}
+          {topInsights.length > 0 && (
+            <div className="space-y-1">
+              {topInsights.map((line, i) => (
+                <div key={i} className="text-[11px] bg-white/12 rounded-md px-2.5 py-1.5 leading-snug">{line}</div>
+              ))}
+            </div>
+          )}
 
           {/* Positions played */}
           {positions.length > 0 && (
@@ -185,6 +269,18 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
             </div>
           )}
 
+          {/* By the numbers */}
+          <div className="border-t border-white/20 pt-2">
+            <div className="grid grid-cols-6 gap-1 text-center">
+              {numbers.map((n) => (
+                <div key={n.label}>
+                  <p className="text-sm font-black leading-none tabular-nums">{n.value}</p>
+                  <p className="text-[8px] uppercase tracking-wide opacity-70 mt-0.5">{n.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Footer branding */}
           <div className="pt-1 flex items-center justify-between text-[9px] opacity-70">
             <span className="font-bold tracking-widest">⚽ TOUCHLINE</span>
@@ -210,10 +306,22 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
  * Render the card to a canvas and trigger a PNG download. Dependency-free so
  * we don't add an html-to-image library.
  */
+interface CardAnalytics {
+  goals: number;
+  assists: number;
+  involvements: number;
+  goalPct: number;
+  goalRingPct: number;
+  nextGoalTarget: number;
+  csRatePct: number;
+  insights: string[];
+  numbers: { label: string; value: number | string }[];
+}
+
 async function downloadCardImage(
   data: PlayerCardData,
   trophyPoints: number,
-  statTiles: { label: string; value: number | string; icon: string }[],
+  a: CardAnalytics,
   badges: { title: string; tier: string }[],
   positions: string[],
   form: { result: string | null }[],
@@ -303,27 +411,76 @@ async function downloadCardImage(
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.fillText(`${data.position}${data.shirtNumber != null ? `   #${data.shirtNumber}` : ''}`, pad + 108, avY + 52);
 
-  // Stat tiles (3 cols x 2 rows)
-  let ty = avY + 120;
-  const tileW = (W - pad * 2 - 24) / 3;
-  const tileH = 84;
-  statTiles.forEach((t, i) => {
-    const col = i % 3, row = Math.floor(i / 3);
-    const x = pad + col * (tileW + 12);
-    const y = ty + row * (tileH + 12);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    roundRect(ctx, x, y, tileW, tileH, 12); ctx.fill();
+  // ── Analytical: two headline rings ──
+  let y = avY + 120;
+  const ringPanelW = (W - pad * 2 - 16) / 2;
+  const ringPanelH = 96;
+  const drawRingPanel = (px: number, pct: number, centre: string, label: string, caption: string) => {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundRect(ctx, px, y, ringPanelW, ringPanelH, 12); ctx.fill();
+    // Ring
+    const cxr = px + 48, cyr = y + ringPanelH / 2, rr = 32;
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.arc(cxr, cyr, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cxr, cyr, rr, -Math.PI / 2, -Math.PI / 2 + (Math.max(0, Math.min(100, pct)) / 100) * Math.PI * 2);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.font = 'bold 32px system-ui, sans-serif';
-    ctx.fillText(String(t.value), x + tileW / 2, y + 14);
-    ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText(t.label.toUpperCase(), x + tileW / 2, y + 54);
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(centre, cxr, cyr);
+    ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
-  });
+    // Label
+    ctx.font = 'bold 14px system-ui, sans-serif';
+    ctx.fillText(label, px + 92, y + 30);
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(caption, px + 92, y + 50);
+  };
+  drawRingPanel(pad, a.goalRingPct, `${a.goals}/${a.nextGoalTarget}`, 'Goals', 'to next milestone');
+  drawRingPanel(pad + ringPanelW + 16, a.csRatePct, `${a.csRatePct}%`, 'Clean sheets', 'of periods');
+  y += ringPanelH + 20;
 
-  let y = ty + 2 * (tileH + 12) + 24;
+  // ── Contribution split bar ──
+  if (a.involvements > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('ATTACKING CONTRIBUTION', pad, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${a.involvements} G+A`, W - pad, y);
+    ctx.textAlign = 'left';
+    y += 20;
+    const barW = W - pad * 2;
+    const gW = Math.round((a.goalPct / 100) * barW);
+    ctx.fillStyle = '#fff';
+    roundRect(ctx, pad, y, gW, 12, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    roundRect(ctx, pad + gW, y, barW - gW, 12, 6); ctx.fill();
+    y += 20;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText(`⚽ ${a.goals} goals`, pad, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`🅰 ${a.assists} assists`, W - pad, y);
+    ctx.textAlign = 'left';
+    y += 30;
+  }
+
+  // ── Insight lines ──
+  for (const line of a.insights) {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundRect(ctx, pad, y, W - pad * 2, 32, 8); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText(line, pad + 12, y + 9);
+    y += 40;
+  }
+  y += 4;
 
   // Positions
   if (positions.length > 0) {
@@ -365,6 +522,23 @@ async function downloadCardImage(
     }
     y += 48;
   }
+
+  // By the numbers (fixed near the bottom)
+  const numY = H - pad - 70;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, numY - 12); ctx.lineTo(W - pad, numY - 12); ctx.stroke();
+  const colW = (W - pad * 2) / a.numbers.length;
+  a.numbers.forEach((n, i) => {
+    const cx = pad + colW * i + colW / 2;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillText(String(n.value), cx, numY);
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(n.label.toUpperCase(), cx, numY + 26);
+  });
+  ctx.textAlign = 'left';
 
   // Footer
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
