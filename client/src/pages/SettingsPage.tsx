@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { usePolicies, useUpdatePolicy, useSeedPolicies } from '@/hooks/use-policies';
 import { parsePolicyValue, type Policy } from '@/services/policy.service';
 import { TeamSetupCard } from '@/components/settings/TeamSetupCard';
+import { ClubBrandingCard } from '@/components/settings/ClubBrandingCard';
 
 /**
  * Settings page - Coaching Philosophy & Policy Engine.
@@ -74,6 +75,9 @@ export function SettingsPage() {
       <div className="grid gap-6">
         {/* Team Setup - format and formation */}
         <TeamSetupCard />
+
+        {/* Club Branding - crest and colour for Player Cards */}
+        <ClubBrandingCard />
 
         {/* Coaching Philosophy */}
         <Card>

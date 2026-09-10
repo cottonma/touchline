@@ -295,15 +295,16 @@ function ResultsView({ results }: { results: { fixtureId: string; date: string; 
 
 function PlayerCardsView({ stats, results }: { stats: PlayerSeasonStats[]; results: { result: string | null }[] }) {
   const { data: players } = usePlayers();
-  const [clubName, setClubName] = useState('Our Team');
+  const [club, setClub] = useState<{ name: string; badgeUrl?: string | null; kitColourHome?: string | null }>({ name: 'Our Team' });
   const [selectedId, setSelectedId] = useState<string>('');
 
-  // Club name for the card header
+  // Club branding for the card header
   useEffect(() => {
-    api.get<any[]>('/auth/clubs').then((clubs) => {
-      const active = localStorage.getItem('touchline_active_club');
-      const club = clubs.find((c: any) => c.id === active) ?? clubs[0];
-      if (club) setClubName(club.name || 'Our Team');
+    const active = localStorage.getItem('touchline_active_club');
+    if (!active) return;
+    api.get<{ data: any }>(`/clubs/${active}`).then((res) => {
+      const c = res.data;
+      if (c) setClub({ name: c.name || 'Our Team', badgeUrl: c.badgeUrl, kitColourHome: c.kitColourHome });
     }).catch(() => {});
   }, []);
 
@@ -341,7 +342,9 @@ function PlayerCardsView({ stats, results }: { stats: PlayerSeasonStats[]; resul
             name: `${player.firstName} ${player.lastName}`,
             shirtNumber: player.shirtNumber,
             position: player.primaryPosition,
-            clubName,
+            clubName: club.name,
+            crestUrl: club.badgeUrl,
+            primaryColor: club.kitColourHome,
             stats: playerStat,
             recentResults: results,
           }}

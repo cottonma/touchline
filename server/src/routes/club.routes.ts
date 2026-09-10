@@ -14,6 +14,14 @@ import { eq } from 'drizzle-orm';
 
 const router = Router();
 
+// Get a single club (any authenticated user) — used for branding on cards.
+router.get('/:id', asyncHandler(async (req, res) => {
+  const id = req.params.id as string;
+  const [club] = await db.select().from(clubs).where(eq(clubs.id, id)).limit(1);
+  if (!club) { res.status(404).json({ error: 'Club not found' }); return; }
+  res.json({ data: club });
+}));
+
 router.post('/', asyncHandler(async (req, res) => {
   const { name, teamName, ageGroup } = req.body;
 
@@ -60,7 +68,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
 router.patch('/:id', asyncHandler(async (req, res) => {
   const id = req.params.id as string;
-  const { name, teamName, ageGroup } = req.body;
+  const { name, teamName, ageGroup, badgeUrl, kitColourHome } = req.body;
 
   // Validate club exists
   const [existing] = await db.select().from(clubs).where(eq(clubs.id, id)).limit(1);
@@ -91,6 +99,24 @@ router.patch('/:id', asyncHandler(async (req, res) => {
       return;
     }
     updates.ageGroup = ageGroup;
+  }
+
+  // Club branding — crest (stored as a data URL) and primary colour (hex)
+  if (badgeUrl !== undefined) {
+    // Accept a data URL or null to clear. Cap size to keep the row sane (~1MB).
+    if (badgeUrl !== null && (typeof badgeUrl !== 'string' || badgeUrl.length > 1_500_000)) {
+      res.status(400).json({ error: 'badgeUrl must be a data URL under ~1MB' });
+      return;
+    }
+    updates.badgeUrl = badgeUrl;
+  }
+
+  if (kitColourHome !== undefined) {
+    if (kitColourHome !== null && !/^#[0-9a-fA-F]{6}$/.test(String(kitColourHome))) {
+      res.status(400).json({ error: 'kitColourHome must be a hex colour like #2323b5' });
+      return;
+    }
+    updates.kitColourHome = kitColourHome;
   }
 
   await db.update(clubs).set(updates).where(eq(clubs.id, id));

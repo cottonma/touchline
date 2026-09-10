@@ -765,3 +765,25 @@ One-tap "Save card as image" renders the card to a canvas and downloads a PNG �
 
 - Coach: Statistics → new "Cards" tab with a player picker.
 - Parent portal: their child's card shown at the top automatically.
+
+---
+
+## Club Branding on Player Cards
+
+Player Cards now use club branding (crest + primary colour) instead of a per-player auto colour, so every card for a club looks consistent and official. Data-driven so any club can set its own.
+
+### Data model
+
+Reuses existing club fields: `badgeUrl` stores the crest as a **data URL** (base64) — chosen over external hosting so the canvas image download works with no CORS issues and no file storage on Railway. `kitColourHome` stores the primary colour (hex).
+
+### Settings
+
+New "Club Branding" card in Settings: upload a crest (auto-downscaled to ~256px PNG and stored as a data URL) and pick a primary colour. Saved via `PATCH /clubs/:id` (which now accepts `badgeUrl` and `kitColourHome`).
+
+### Card rendering
+
+Card background is a gradient from the club colour; small crest on a white panel in the header; large faint crest watermark behind the stats. The PNG download preloads the crest data URL and draws it onto the canvas. Clubs without branding fall back to the previous per-player auto colour and initials.
+
+### Access
+
+Added `GET /clubs/:id` (any authenticated user) so parents and non-admin coaches can read their club's branding — the existing `/auth/clubs` is admin-only. Parent cards resolve the club from the child's `clubId`.

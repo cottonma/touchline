@@ -48,7 +48,7 @@ interface MotmVote {
 export function ParentPage() {
   const { user } = useAuth();
   const { data: allSeasonStats } = usePlayerStats();
-  const [clubName, setClubName] = useState('Our Team');
+  const [club, setClub] = useState<{ name: string; badgeUrl?: string | null; kitColourHome?: string | null }>({ name: 'Our Team' });
   const [child, setChild] = useState<Player | null>(null);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -141,12 +141,13 @@ export function ParentPage() {
   }, [fetchData]);
 
   useEffect(() => {
-    api.get<any[]>('/auth/clubs').then((clubs) => {
-      const active = localStorage.getItem('touchline_active_club');
-      const club = clubs.find((c: any) => c.id === active) ?? clubs[0];
-      if (club) setClubName(club.name || 'Our Team');
+    const clubId = (child as any)?.clubId || localStorage.getItem('touchline_active_club');
+    if (!clubId) return;
+    api.get<{ data: any }>(`/clubs/${clubId}`).then((res) => {
+      const c = res.data;
+      if (c) setClub({ name: c.name || 'Our Team', badgeUrl: c.badgeUrl, kitColourHome: c.kitColourHome });
     }).catch(() => {});
-  }, []);
+  }, [child]);
 
   const handleAvailability = async (fixtureId: string, status: 'available' | 'unavailable') => {
     setSavingAvailability(fixtureId);
@@ -225,7 +226,9 @@ export function ParentPage() {
             name: `${child.firstName} ${child.lastName}`,
             shirtNumber: child.shirtNumber,
             position: child.primaryPosition,
-            clubName,
+            clubName: club.name,
+            crestUrl: club.badgeUrl,
+            primaryColor: club.kitColourHome,
             stats: (allSeasonStats ?? []).find((s) => s.playerId === child.id) ?? null,
             recentResults: completedFixtures
               .slice(0, 5)

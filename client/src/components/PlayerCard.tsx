@@ -17,6 +17,8 @@ export interface PlayerCardData {
   clubName: string;
   stats: PlayerSeasonStats | null;
   recentResults?: { result: string | null }[]; // most-recent first
+  crestUrl?: string | null;      // club crest (data URL) if set
+  primaryColor?: string | null;  // club primary colour (hex) if set
 }
 
 const TIER_MEDAL: Record<string, string> = { bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
@@ -41,12 +43,27 @@ function initials(name: string): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
 }
 
+/** Darken (negative) or lighten (positive) a hex colour by a factor. */
+function shade(hex: string, factor: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return hex;
+  const num = parseInt(m[1], 16);
+  let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  const adj = (c: number) => Math.max(0, Math.min(255, Math.round(c + (factor < 0 ? c * factor : (255 - c) * factor))));
+  r = adj(r); g = adj(g); b = adj(b);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
 export function PlayerCard({ data }: { data: PlayerCardData }) {
   const { data: badges } = usePlayerBadges(data.playerId);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const trophyPoints = (badges ?? []).reduce((s, b) => s + (b.points ?? 0), 0);
-  const accent = accentFor(data.name);
+  // Prefer the club's brand colour; otherwise a per-player auto colour.
+  const accent = data.primaryColor
+    ? { from: shade(data.primaryColor, -0.25), to: data.primaryColor, solid: data.primaryColor }
+    : accentFor(data.name);
+  const crest = data.crestUrl || null;
   const s = data.stats;
 
   const statTiles: { label: string; value: number | string; icon: string }[] = [
@@ -62,7 +79,7 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
   const positions = s?.positionsPlayed ?? [];
   const form = (data.recentResults ?? []).slice(0, 5);
 
-  const saveImage = () => downloadCardImage(data, trophyPoints, statTiles, topBadges, positions, form, accent);
+  const saveImage = () => downloadCardImage(data, trophyPoints, statTiles, topBadges, positions, form, accent, crest);
 
   return (
     <div className="space-y-3">
@@ -75,14 +92,30 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
         {/* subtle pitch texture */}
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 22px, rgba(255,255,255,0.4) 22px, rgba(255,255,255,0.4) 23px)' }} />
 
+        {/* Faint crest watermark behind the content */}
+        {crest && (
+          <img
+            src={crest}
+            alt=""
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 object-contain opacity-[0.08] pointer-events-none"
+          />
+        )}
+
         <div className="relative p-5 space-y-4">
-          {/* Header: club + trophy points */}
+          {/* Header: crest + club + trophy points */}
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[11px] uppercase tracking-widest opacity-80">{data.clubName}</p>
-              <p className="text-[10px] opacity-70">Season Card</p>
+            <div className="flex items-center gap-2 min-w-0">
+              {crest && (
+                <div className="w-10 h-10 rounded-md bg-white/90 p-0.5 flex items-center justify-center shrink-0">
+                  <img src={crest} alt="Club crest" className="max-w-full max-h-full object-contain" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-widest opacity-90 truncate">{data.clubName}</p>
+                <p className="text-[10px] opacity-70">Season Card</p>
+              </div>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <p className="text-3xl font-black leading-none tabular-nums">{trophyPoints}</p>
               <p className="text-[10px] uppercase tracking-widest opacity-80">Trophy Pts</p>
             </div>
@@ -177,7 +210,7 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
  * Render the card to a canvas and trigger a PNG download. Dependency-free so
  * we don't add an html-to-image library.
  */
-function downloadCardImage(
+async function downloadCardImage(
   data: PlayerCardData,
   trophyPoints: number,
   statTiles: { label: string; value: number | string; icon: string }[],
@@ -185,12 +218,24 @@ function downloadCardImage(
   positions: string[],
   form: { result: string | null }[],
   accent: { from: string; to: string; solid: string },
+  crestUrl: string | null,
 ) {
   const W = 620, H = 900;
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+
+  // Preload the crest (data URL — same origin, safe for canvas export)
+  let crestImg: HTMLImageElement | null = null;
+  if (crestUrl) {
+    crestImg = await new Promise<HTMLImageElement | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = crestUrl;
+    });
+  }
 
   // Background gradient
   const grad = ctx.createLinearGradient(0, 0, W, H);
@@ -199,16 +244,34 @@ function downloadCardImage(
   ctx.fillStyle = grad;
   roundRect(ctx, 0, 0, W, H, 32); ctx.fill();
 
+  // Faint crest watermark
+  if (crestImg) {
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    const size = 380;
+    ctx.drawImage(crestImg, (W - size) / 2, (H - size) / 2, size, size);
+    ctx.restore();
+  }
+
   const pad = 44;
   ctx.textBaseline = 'top';
 
+  // Small crest logo in the header (on a white rounded panel)
+  if (crestImg) {
+    const cs = 56;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    roundRect(ctx, pad, pad - 6, cs, cs, 10); ctx.fill();
+    ctx.drawImage(crestImg, pad + 4, pad - 2, cs - 8, cs - 8);
+  }
+  const clubTextX = crestImg ? pad + 68 : pad;
+
   // Club + trophy points
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.font = 'bold 20px system-ui, sans-serif';
-  ctx.fillText(data.clubName.toUpperCase(), pad, pad);
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.fillText(data.clubName.toUpperCase(), clubTextX, pad);
   ctx.font = '14px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('SEASON CARD', pad, pad + 26);
+  ctx.fillText('SEASON CARD', clubTextX, pad + 24);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = '#fff';
