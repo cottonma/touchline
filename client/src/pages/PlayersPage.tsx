@@ -100,8 +100,25 @@ export function PlayersPage() {
               className="flex items-center gap-4 rounded-lg border p-4 cursor-pointer transition-colors hover:bg-accent/50"
             >
               {/* Avatar / Shirt Number */}
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                {player.shirtNumber ?? '?'}
+              <div className="relative h-10 w-10 shrink-0">
+                {player.photoUrl ? (
+                  <>
+                    <img
+                      src={player.photoUrl}
+                      alt={`${player.firstName} ${player.lastName}`}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                    {player.shirtNumber != null && (
+                      <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground ring-2 ring-background">
+                        {player.shirtNumber}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {player.shirtNumber ?? '?'}
+                  </div>
+                )}
               </div>
 
               {/* Name & Position */}

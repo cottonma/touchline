@@ -97,8 +97,21 @@ export function PlayerDetailPage() {
       {/* Player header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
-            {player.shirtNumber ?? <Shirt className="h-6 w-6" />}
+          <div className="relative h-16 w-16 shrink-0">
+            {player.photoUrl ? (
+              <>
+                <img src={player.photoUrl} alt={`${player.firstName} ${player.lastName}`} className="h-16 w-16 rounded-full object-cover" />
+                {player.shirtNumber != null && (
+                  <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-background">
+                    {player.shirtNumber}
+                  </span>
+                )}
+              </>
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
+                {player.shirtNumber ?? <Shirt className="h-6 w-6" />}
+              </div>
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
