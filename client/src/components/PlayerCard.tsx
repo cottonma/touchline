@@ -33,14 +33,36 @@ interface GroupedBadge {
 }
 
 /**
+ * A repeatable "base" badge is superseded by any milestone tier in the same
+ * family. Once a player has "5 Clean Sheets", showing "Clean Sheet ×4" as well
+ * is confusing, so we hide the base and let the tier represent the achievement.
+ * Maps: base badge type → the tier types that supersede it.
+ */
+const BADGE_TIER_FAMILIES: Record<string, string[]> = {
+  clean_sheet: ['clean_sheets_5', 'clean_sheets_10', 'clean_sheets_15', 'clean_sheets_20'],
+  gk_shutout: ['gk_shutouts_5', 'gk_shutouts_10'],
+  first_goal: ['goals_5', 'goals_10', 'goals_15', 'goals_20'],
+  first_assist: ['assists_5', 'assists_10', 'assists_15', 'assists_20'],
+};
+
+/**
  * Collapse repeatable badges (e.g. Clean Sheet, Shutout, Hat-trick) that a
  * player has earned multiple times into a single trophy with a count, instead
  * of showing three identical "Clean Sheet" trophies. Points are summed so the
  * Trophy Points total is unchanged; the cabinet just looks tidy.
+ *
+ * Also hides a repeatable base badge once a milestone tier in the same family
+ * has been earned (e.g. drop "Clean Sheet ×4" when "5 Clean Sheets" exists),
+ * so the card never shows two conflicting clean-sheet counts.
  */
 function groupBadges(list: { badgeType: string; title: string; tier: string; points: number }[]): GroupedBadge[] {
+  const presentTypes = new Set(list.map((b) => b.badgeType));
   const map = new Map<string, GroupedBadge>();
   for (const b of list) {
+    // Skip a base badge if any of its superseding tiers are present.
+    const supersedingTiers = BADGE_TIER_FAMILIES[b.badgeType];
+    if (supersedingTiers && supersedingTiers.some((t) => presentTypes.has(t))) continue;
+
     const existing = map.get(b.badgeType);
     if (existing) {
       existing.count += 1;
