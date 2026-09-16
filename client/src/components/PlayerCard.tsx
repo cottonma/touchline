@@ -72,6 +72,116 @@ function initials(name: string): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
 }
 
+// ── Role classification ───────────────────────────────────
+// Maps a position code to a broad zone (mirrors the server POSITION_ZONE).
+const POSITION_ZONE: Record<string, 'defence' | 'midfield' | 'attack' | 'gk'> = {
+  GK: 'gk',
+  CB: 'defence', LB: 'defence', RB: 'defence', LCB: 'defence', RCB: 'defence', LWB: 'defence', RWB: 'defence',
+  CM: 'midfield', LM: 'midfield', RM: 'midfield', LCM: 'midfield', RCM: 'midfield', CDM: 'midfield', CAM: 'midfield',
+  CF: 'attack', ST: 'attack', LW: 'attack', RW: 'attack',
+};
+
+type PlayerRole = 'goalkeeper' | 'defender' | 'midfielder' | 'attacker';
+
+/**
+ * Decide the player's role from the positions they actually play plus their
+ * data, so the card's headline stats stay relevant to each player. Uses the
+ * MOST-PLAYED zone rather than only the nominal primary position.
+ */
+function classifyRole(primary: string, positionsPlayed: string[], gkSharePct: number): PlayerRole {
+  // Clear goalkeeper: primary GK, or a big chunk of minutes spent in goal.
+  if (primary === 'GK' || gkSharePct >= 40) return 'goalkeeper';
+
+  // Tally zones across positions actually played (fall back to primary).
+  const zones = (positionsPlayed.length ? positionsPlayed : [primary])
+    .map((p) => POSITION_ZONE[p])
+    .filter(Boolean) as ('defence' | 'midfield' | 'attack' | 'gk')[];
+  const count = { defence: 0, midfield: 0, attack: 0, gk: 0 };
+  for (const z of zones) count[z]++;
+  // Weight the nominal primary a little so it breaks ties sensibly.
+  const primaryZone = POSITION_ZONE[primary];
+  if (primaryZone) count[primaryZone] += 0.5;
+
+  const top = (['attack', 'defence', 'midfield'] as const)
+    .sort((a, b) => count[b] - count[a])[0];
+  if (top === 'attack') return 'attacker';
+  if (top === 'defence') return 'defender';
+  return 'midfielder';
+}
+
+// ── "Player to watch" — curated, all-male role models (5 per position group) ──
+interface RoleModel { name: string; watch: string; }
+
+const ROLE_MODELS: Record<'gk' | 'defence' | 'fullback' | 'midfield' | 'winger' | 'attack', RoleModel[]> = {
+  gk: [
+    { name: 'Alisson', watch: 'how calm he stays and how he starts attacks with the ball at his feet' },
+    { name: 'Ederson', watch: 'his passing — a keeper who plays like an extra defender' },
+    { name: 'Thibaut Courtois', watch: 'his shot-stopping and how big he makes himself' },
+    { name: 'David Raya', watch: 'his brave positioning and quick decisions' },
+    { name: 'Jordan Pickford', watch: 'how loudly he organises the players in front of him' },
+  ],
+  defence: [
+    { name: 'Virgil van Dijk', watch: 'how he stays calm and reads danger before it happens' },
+    { name: 'William Saliba', watch: 'his positioning and recovery pace when covering' },
+    { name: 'Rúben Dias', watch: 'how he talks to teammates and never gives up on a tackle' },
+    { name: 'John Stones', watch: 'how comfortable he is bringing the ball out of defence' },
+    { name: 'Antonio Rüdiger', watch: 'his energy and how aggressively he defends the front' },
+  ],
+  fullback: [
+    { name: 'Trent Alexander-Arnold', watch: 'his crossing and clever passes from the right' },
+    { name: 'Alphonso Davies', watch: 'how he sprints back to defend after attacking' },
+    { name: 'João Cancelo', watch: 'how he pops into midfield to help build play' },
+    { name: 'Achraf Hakimi', watch: 'his overlapping runs and end product' },
+    { name: 'Kyle Walker', watch: 'how he uses his pace to recover and defend 1v1' },
+  ],
+  midfield: [
+    { name: 'Kevin De Bruyne', watch: 'his passing vision and how he spots runs early' },
+    { name: 'Jude Bellingham', watch: 'how he pops up all over the pitch to help both ends' },
+    { name: 'Rodri', watch: 'his positioning and how he shields the defence' },
+    { name: 'Luka Modrić', watch: 'how he controls the tempo and keeps the ball' },
+    { name: 'Martin Ødegaard', watch: 'his clever touches and how he links play in tight spaces' },
+  ],
+  winger: [
+    { name: 'Bukayo Saka', watch: 'how he beats his man and delivers into the box' },
+    { name: 'Vinícius Jr', watch: 'how he attacks defenders 1v1 with pace and tricks' },
+    { name: 'Phil Foden', watch: 'his close control and clever movement inside' },
+    { name: 'Marcus Rashford', watch: 'his direct running and finishing on the move' },
+    { name: 'Mohamed Salah', watch: 'how he cuts inside and shoots low across goal' },
+  ],
+  attack: [
+    { name: 'Erling Haaland', watch: 'how he gambles and finds space in the box' },
+    { name: 'Harry Kane', watch: 'his movement to find space and unselfish link-up play' },
+    { name: 'Kylian Mbappé', watch: 'his explosive pace in behind and cool finishing' },
+    { name: 'Darwin Núñez', watch: 'his relentless running and pressing from the front' },
+    { name: 'Ollie Watkins', watch: 'his smart runs and work rate leading the line' },
+  ],
+};
+
+/** Safely read the positions-played list from stats. */
+function positionsPlayedList(s: PlayerSeasonStats | null): string[] {
+  return s?.positionsPlayed ?? [];
+}
+
+/** Pick a stable role model so teammates in the same role don't all get the same one. */
+function pickRoleModel(role: PlayerRole, primary: string, positionsPlayed: string[], seed: string): RoleModel {
+  let pool: RoleModel[];
+  if (role === 'goalkeeper') pool = ROLE_MODELS.gk;
+  else if (role === 'defender') {
+    const fullbackish = ['LB', 'RB', 'LWB', 'RWB'];
+    const plays = positionsPlayed.length ? positionsPlayed : [primary];
+    pool = plays.some((p) => fullbackish.includes(p)) && !plays.includes('CB') ? ROLE_MODELS.fullback : ROLE_MODELS.defence;
+  } else if (role === 'attacker') {
+    const wingish = ['LM', 'RM', 'LW', 'RW'];
+    const plays = positionsPlayed.length ? positionsPlayed : [primary];
+    pool = plays.some((p) => wingish.includes(p)) ? ROLE_MODELS.winger : ROLE_MODELS.attack;
+  } else pool = ROLE_MODELS.midfield;
+
+  // Deterministic index from the seed (player id) so it's stable per player.
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return pool[h % pool.length];
+}
+
 /** Darken (negative) or lighten (positive) a hex colour by a factor. */
 function shade(hex: string, factor: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -141,25 +251,80 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
   // Contribution split (goals vs assists)
   const goalPct = involvements > 0 ? Math.round((goals / involvements) * 100) : 0;
 
-  // Pundit-style insight lines (only include ones that are meaningful)
-  const insights: string[] = [];
-  if (goals > 0 && s?.minutesPerGoal) insights.push(`⚽ A goal every ${s.minutesPerGoal} mins on the pitch`);
-  if (involvements > 0) insights.push(`🎯 ${involvements} goal involvement${involvements === 1 ? '' : 's'} (${goals}G, ${assists}A)`);
-  if ((s?.positionVariety ?? 0) >= 2) insights.push(`🔄 Played ${s!.positionVariety} different positions`);
-  if (cleanSheets > 0) insights.push(`🧤 Clean sheet in ${cleanSheets} ${cleanSheets === 1 ? 'period' : 'periods'}`);
-  if (apps > 0) insights.push(`⏱️ Averages ${s?.avgMinutesPerAppearance ?? Math.round(totalMins / apps)} mins per game`);
-  if ((s?.motmAwards ?? 0) > 0) insights.push(`🏆 Player of the Match ${s!.motmAwards}×`);
+  // Involvements milestone ring (used for midfielders)
+  const involveMilestones = [5, 10, 15, 20, 30, 40];
+  const nextInvolveTarget = involveMilestones.find((m) => m > involvements) ?? (involvements + 5);
+  const prevInvolveBase = involveMilestones.filter((m) => m <= involvements).pop() ?? 0;
+  const involveRingPct = nextInvolveTarget > prevInvolveBase
+    ? Math.min(100, Math.round(((involvements - prevInvolveBase) / (nextInvolveTarget - prevInvolveBase)) * 100))
+    : 0;
+
+  // Clean-sheet milestone ring (used for defenders/keepers)
+  const csMilestones = [5, 10, 15, 20, 30];
+  const nextCsTarget = csMilestones.find((m) => m > cleanSheets) ?? (cleanSheets + 5);
+  const prevCsBase = csMilestones.filter((m) => m <= cleanSheets).pop() ?? 0;
+  const csRingPct = nextCsTarget > prevCsBase
+    ? Math.min(100, Math.round(((cleanSheets - prevCsBase) / (nextCsTarget - prevCsBase)) * 100))
+    : 0;
+
+  // ── Role: makes the two headline stats relevant to how this player plays ──
+  const role = classifyRole(data.position, positionsPlayedList(s), s?.gkSharePct ?? 0);
+  const roleModel = pickRoleModel(role, data.position, positionsPlayedList(s), data.playerId);
+
+  // Choose the two prominent rings based on role.
+  type RingCfg = { label: string; sub: string; pct: number; caption: string };
+  let ringA: RingCfg, ringB: RingCfg;
+  if (role === 'goalkeeper') {
+    ringA = { label: 'Clean sheets', sub: `${cleanSheets}`, pct: csRatePct, caption: 'periods kept clean' };
+    ringB = { label: 'Reliability', sub: `${csRatePct}%`, pct: csRatePct, caption: 'of periods played' };
+  } else if (role === 'defender') {
+    ringA = { label: 'Clean sheets', sub: `${cleanSheets} / ${nextCsTarget}`, pct: csRingPct, caption: 'to next milestone' };
+    ringB = { label: 'Rock at the back', sub: `${csRatePct}%`, pct: csRatePct, caption: 'periods kept clean' };
+  } else if (role === 'midfielder') {
+    ringA = { label: 'Involvements', sub: `${involvements} / ${nextInvolveTarget}`, pct: involveRingPct, caption: 'goals + assists' };
+    ringB = { label: 'Clean sheets', sub: `${csRatePct}%`, pct: csRatePct, caption: 'periods kept clean' };
+  } else {
+    ringA = { label: 'Goals', sub: `${goals} / ${nextGoalTarget}`, pct: goalRingPct, caption: 'to next milestone' };
+    ringB = { label: 'Contribution', sub: `${involvements}`, pct: involveRingPct, caption: 'goals + assists' };
+  }
+
+  const showAttackingBar = (role === 'attacker' || role === 'midfielder') && involvements > 0;
+  const showDefensiveBar = (role === 'defender' || role === 'goalkeeper') && cleanSheets > 0;
+
+  // Pundit-style insight lines — ordered by role so the relevant ones lead.
+  const attackInsights: string[] = [];
+  if (goals > 0 && s?.minutesPerGoal) attackInsights.push(`⚽ A goal every ${s.minutesPerGoal} mins on the pitch`);
+  if (involvements > 0) attackInsights.push(`🎯 ${involvements} goal involvement${involvements === 1 ? '' : 's'} (${goals}G, ${assists}A)`);
+  const defenceInsights: string[] = [];
+  if (cleanSheets > 0) defenceInsights.push(`🛡️ On the pitch for ${cleanSheets} clean-sheet ${cleanSheets === 1 ? 'period' : 'periods'}`);
+  if (role === 'goalkeeper' && csRatePct > 0) defenceInsights.push(`🧤 Kept it tight in ${csRatePct}% of periods played`);
+  const commonInsights: string[] = [];
+  if ((s?.positionVariety ?? 0) >= 2) commonInsights.push(`🔄 Played ${s!.positionVariety} different positions`);
+  if (apps > 0) commonInsights.push(`⏱️ Averages ${s?.avgMinutesPerAppearance ?? Math.round(totalMins / apps)} mins per game`);
+  if ((s?.motmAwards ?? 0) > 0) commonInsights.push(`🏆 Player of the Match ${s!.motmAwards}×`);
+
+  const insights = (role === 'defender' || role === 'goalkeeper')
+    ? [...defenceInsights, ...commonInsights, ...attackInsights]
+    : [...attackInsights, ...commonInsights, ...defenceInsights];
   const topInsights = insights.slice(0, 3);
 
-  // Compact "by the numbers" footer figures
-  const numbers: { label: string; value: number | string }[] = [
-    { label: 'Apps', value: apps },
+  // Compact "by the numbers" footer — reorder so the relevant stats sit first.
+  const attackNumbers = [
     { label: 'Goals', value: goals },
     { label: 'Assists', value: assists },
-    { label: 'Mins', value: totalMins },
+  ];
+  const defenceNumbers = [
     { label: 'CS', value: cleanSheets },
+  ];
+  const baseNumbers = [
+    { label: 'Apps', value: apps },
+    { label: 'Mins', value: totalMins },
     { label: 'POTM', value: s?.motmAwards ?? 0 },
   ];
+  const numbers: { label: string; value: number | string }[] =
+    (role === 'defender' || role === 'goalkeeper')
+      ? [...defenceNumbers, ...attackNumbers, ...baseNumbers]
+      : [...attackNumbers, ...defenceNumbers, ...baseNumbers];
 
   const topBadges = groupBadges(badges ?? [])
     .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
@@ -169,8 +334,8 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
 
   const saveImage = () => downloadCardImage(
     data, trophyPoints,
-    { goals, assists, involvements, goalPct, goalRingPct, nextGoalTarget, csRatePct, insights: topInsights, numbers },
-    topBadges, positions, form, accent, crest,
+    { goals, assists, involvements, goalPct, ringA, ringB, showAttackingBar, showDefensiveBar, csRatePct, periodsPlayed, insights: topInsights, numbers },
+    topBadges, positions, form, accent, crest, roleModel,
   );
 
   return (
@@ -233,14 +398,32 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
             </div>
           </div>
 
-          {/* Analytical: headline rings */}
+          {/* Analytical: headline rings (role-aware) */}
           <div className="grid grid-cols-2 gap-2">
-            <Ring label="Goals" sub={`${goals} / ${nextGoalTarget}`} pct={goalRingPct} caption="to next milestone" />
-            <Ring label="Clean sheets" sub={`${csRatePct}%`} pct={csRatePct} caption="of periods played" />
+            <Ring label={ringA.label} sub={ringA.sub} pct={ringA.pct} caption={ringA.caption} />
+            <Ring label={ringB.label} sub={ringB.sub} pct={ringB.pct} caption={ringB.caption} />
           </div>
 
-          {/* Contribution split: goals vs assists */}
-          {involvements > 0 && (
+          {/* Defensive contribution (defenders / keepers) */}
+          {showDefensiveBar && (
+            <div>
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest opacity-80 mb-1">
+                <span>Defensive contribution</span>
+                <span>{cleanSheets} clean{cleanSheets === 1 ? '' : 's'}</span>
+              </div>
+              <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-white/20">
+                <div className="h-full bg-white" style={{ width: `${csRatePct}%` }} />
+                <div className="h-full bg-white/40" style={{ width: `${100 - csRatePct}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-[9px] opacity-80 mt-1">
+                <span>🛡️ {csRatePct}% periods kept clean</span>
+                <span>🧤 {periodsPlayed} periods played</span>
+              </div>
+            </div>
+          )}
+
+          {/* Attacking contribution split: goals vs assists (attackers / midfielders) */}
+          {showAttackingBar && (
             <div>
               <div className="flex items-center justify-between text-[10px] uppercase tracking-widest opacity-80 mb-1">
                 <span>Attacking contribution</span>
@@ -277,6 +460,13 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
               </div>
             </div>
           )}
+
+          {/* Player to watch — a pro role model for this player's role */}
+          <div className="bg-white/12 rounded-lg px-3 py-2">
+            <p className="text-[10px] uppercase tracking-widest opacity-80 mb-0.5">⭐ Player to watch</p>
+            <p className="text-sm font-black leading-tight">{roleModel.name}</p>
+            <p className="text-[10px] opacity-85 leading-snug mt-0.5">Watch {roleModel.watch}.</p>
+          </div>
 
           {/* Trophy cabinet */}
           {topBadges.length > 0 && (
@@ -341,14 +531,18 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
  * Render the card to a canvas and trigger a PNG download. Dependency-free so
  * we don't add an html-to-image library.
  */
+interface RingCfgExport { label: string; sub: string; pct: number; caption: string }
 interface CardAnalytics {
   goals: number;
   assists: number;
   involvements: number;
   goalPct: number;
-  goalRingPct: number;
-  nextGoalTarget: number;
+  ringA: RingCfgExport;
+  ringB: RingCfgExport;
+  showAttackingBar: boolean;
+  showDefensiveBar: boolean;
   csRatePct: number;
+  periodsPlayed: number;
   insights: string[];
   numbers: { label: string; value: number | string }[];
 }
@@ -362,6 +556,7 @@ async function downloadCardImage(
   form: { result: string | null }[],
   accent: { from: string; to: string; solid: string },
   crestUrl: string | null,
+  roleModel: { name: string; watch: string },
 ) {
   const W = 620, H = 900;
   const canvas = document.createElement('canvas');
@@ -484,12 +679,34 @@ async function downloadCardImage(
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.fillText(caption, px + 92, y + 50);
   };
-  drawRingPanel(pad, a.goalRingPct, `${a.goals}/${a.nextGoalTarget}`, 'Goals', 'to next milestone');
-  drawRingPanel(pad + ringPanelW + 16, a.csRatePct, `${a.csRatePct}%`, 'Clean sheets', 'of periods');
+  drawRingPanel(pad, a.ringA.pct, a.ringA.sub, a.ringA.label, a.ringA.caption);
+  drawRingPanel(pad + ringPanelW + 16, a.ringB.pct, a.ringB.sub, a.ringB.label, a.ringB.caption);
   y += ringPanelH + 20;
 
-  // ── Contribution split bar ──
-  if (a.involvements > 0) {
+  // ── Contribution bar (role-aware: attacking or defensive) ──
+  if (a.showDefensiveBar) {
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('DEFENSIVE CONTRIBUTION', pad, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${a.csRatePct}% kept clean`, W - pad, y);
+    ctx.textAlign = 'left';
+    y += 20;
+    const barW = W - pad * 2;
+    const cW = Math.round((a.csRatePct / 100) * barW);
+    ctx.fillStyle = '#fff';
+    roundRect(ctx, pad, y, cW, 12, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    roundRect(ctx, pad + cW, y, barW - cW, 12, 6); ctx.fill();
+    y += 20;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText(`🛡 ${a.csRatePct}% periods kept clean`, pad, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`🧤 ${a.periodsPlayed} periods played`, W - pad, y);
+    ctx.textAlign = 'left';
+    y += 30;
+  } else if (a.showAttackingBar) {
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.font = 'bold 12px system-ui, sans-serif';
     ctx.fillText('ATTACKING CONTRIBUTION', pad, y);
@@ -563,6 +780,31 @@ async function downloadCardImage(
       cx += w + 8;
     }
     y += 48;
+  }
+
+  // Player to watch
+  {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundRect(ctx, pad, y, W - pad * 2, 60, 10); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText('⭐ PLAYER TO WATCH', pad + 12, y + 8);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.fillText(roleModel.name, pad + 12, y + 26);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = '11px system-ui, sans-serif';
+    const tip = `Watch ${roleModel.watch}.`;
+    // wrap the tip to the panel width
+    const maxW = W - pad * 2 - 200;
+    let line = '', tipX = pad + 200, tipY = y + 12;
+    for (const word of tip.split(' ')) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > maxW && line) { ctx.fillText(line, tipX, tipY); line = word; tipY += 16; }
+      else line = test;
+    }
+    if (line) ctx.fillText(line, tipX, tipY);
+    y += 72;
   }
 
   // By the numbers (fixed near the bottom)

@@ -791,6 +791,21 @@ One-tap "Save card as image" renders the card to a canvas and downloads a PNG �
 - Coach: Statistics → new "Cards" tab with a player picker.
 - Parent portal: their child's card shown at the top automatically.
 
+### Role-aware headline stats
+
+The two prominent rings and the contribution bar are chosen from the player's **role**, so the card celebrates what each child actually does rather than a fixed goals-first template. Role is derived from the positions they actually play (most-played zone, not just the nominal primary) plus GK share:
+
+- **Attacker/winger/forward:** Goals-to-milestone ring + attacking contribution bar (goals vs assists).
+- **Midfielder:** Goal-involvements ring + clean-sheet-rate ring (balanced).
+- **Defender:** Clean-sheets-to-milestone ring + "rock at the back" reliability, with a **defensive contribution** bar. Goals drop to the by-the-numbers footer instead of the headline.
+- **Goalkeeper:** Clean sheets + reliability rings with the defensive bar.
+
+Insight lines and the by-the-numbers footer reorder to lead with the role's relevant stats. Nobody's goals are hidden — a defender who scores still sees it in the footer and can earn goal trophies — goals just aren't the headline for a player whose job is at the back. This deliberately avoids telling a centre-back their card is "about" goals they aren't there to score.
+
+### Player to watch
+
+Each card suggests a professional footballer as a **role model to learn from** (never "you are the next X"). Curated, all-male pools of 5 per position group (GK, defence, full-back, midfield, winger, forward) with a short skill/attitude-focused "watch how…" tip. The pick is deterministic per player (hashed from player id) so teammates in the same role don't all get the same name, and it's driven by the same role classification as the headline stats. Fully curated in code so the club controls exactly who appears — no external API, no AI, works offline.
+
 ---
 
 ## Club Branding on Player Cards
