@@ -527,11 +527,11 @@ export function MatchDayPageV2() {
           {/* MOTM + Notes */}
           <Card>
             <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm">Man of the Match & Notes</CardTitle>
+              <CardTitle className="text-sm">Player of the Match & Notes</CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-3">
               <div className="space-y-1">
-                <Label className="text-xs">Man of the Match</Label>
+                <Label className="text-xs">Player of the Match</Label>
                 <Select value={motmPlayerId} onChange={(e) => setMotmPlayerId(e.target.value)} className="h-9 text-xs">
                   <option value="">Select MOTM...</option>
                   {players?.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
@@ -565,7 +565,7 @@ export function MatchDayPageV2() {
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Trophy className="h-4 w-4 text-yellow-500" />
-                  Parent MOTM Votes ({motmTally.totalVotes})
+                  Parent POTM Votes ({motmTally.totalVotes})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">

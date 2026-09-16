@@ -505,7 +505,7 @@ export function MatchDayPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Man of the Match (private)</Label>
+                <Label>Player of the Match (private)</Label>
                 <Select value={motmPlayerId} onChange={(e) => setMotmPlayerId(e.target.value)}>
                   <option value="">None selected</option>
                   {players?.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}

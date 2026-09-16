@@ -152,7 +152,7 @@ function PlayerStatsView({ stats, periods }: { stats: PlayerSeasonStats[]; perio
               <th className="pb-2 font-medium text-center">Assists</th>
               <th className="pb-2 font-medium text-center" title="Goal involvements — goals plus assists">G+A</th>
               <th className="pb-2 font-medium text-center" title={`Clean sheet ${periodWord.toLowerCase()}s — full ${periodWord.toLowerCase()}s played where no goal was conceded`}>{csHeader}</th>
-              <th className="pb-2 font-medium text-center">MOTM</th>
+              <th className="pb-2 font-medium text-center">POTM</th>
               <th className="pb-2 font-medium text-center" title={`Total ${periodWord.toLowerCase()}s a player featured in`}>{periodWord.charAt(0)}s Played</th>
               <th className="pb-2 font-medium text-right" title="Outfield minutes">Outfield</th>
               <th className="pb-2 font-medium text-right" title="Goalkeeper minutes">GK</th>
@@ -221,7 +221,7 @@ function PlayerStatCard({ s, rank, sortBy, periodWord }: { s: PlayerSeasonStats;
     { label: 'Assists', value: s.assists },
     { label: 'Goal involvements', value: s.goalInvolvements },
     { label: `CS ${periodWord.toLowerCase()}s`, value: s.cleanSheets },
-    { label: 'MOTM', value: s.motmAwards },
+    { label: 'POTM', value: s.motmAwards },
     { label: `${periodWord}s played`, value: s.periodsPlayed },
     { label: 'Outfield minutes', value: s.outfieldMinutes },
     { label: 'GK minutes', value: s.goalkeeperMinutes },
@@ -382,7 +382,7 @@ function formatSortLabel(key: keyof PlayerSeasonStats): string {
     goalInvolvements: 'G+A',
     appearances: 'Apps',
     cleanSheets: 'CS',
-    motmAwards: 'MOTM',
+    motmAwards: 'POTM',
     totalMinutes: 'Minutes',
   };
   return labels[key] ?? key;

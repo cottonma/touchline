@@ -25,8 +25,8 @@ export const AUTO_BADGES: Record<string, BadgeDef> = {
   twentyfive_appearances: { title: '25 Appearances', emoji: '🎖️', description: 'Played in 25 matches', tier: 'gold', points: 50 },
   fifty_appearances: { title: '50 Appearances', emoji: '🏅', description: 'Played in 50 matches', tier: 'platinum', points: 100 },
 
-  // Man of the Match (repeatable, once per match)
-  motm: { title: 'Man of the Match', emoji: '🏆', description: 'Named Man of the Match', tier: 'silver', points: 20 },
+  // Player of the Match (repeatable, once per match)
+  motm: { title: 'Player of the Match', emoji: '🏆', description: 'Named Player of the Match', tier: 'silver', points: 20 },
 
   // Goals (season-scoped tiers) — modest points so scoring isn't over-rewarded
   first_goal: { title: 'First Goal', emoji: '🎯', description: 'Scored their first goal this season', tier: 'bronze', points: 12 },

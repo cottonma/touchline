@@ -473,7 +473,7 @@ export function FixtureDetailPage() {
               {/* MOTM */}
               {matchRecord.result?.motmPlayerId && (
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Man of the Match</h4>
+                  <h4 className="text-xs font-medium text-muted-foreground mb-1">Player of the Match</h4>
                   <p className="text-sm font-medium">
                     🏆 {players?.find(p => p.id === matchRecord.result.motmPlayerId)?.firstName ?? ''} {players?.find(p => p.id === matchRecord.result.motmPlayerId)?.lastName ?? ''}
                   </p>

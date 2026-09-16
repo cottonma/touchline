@@ -350,12 +350,12 @@ export function ParentPage() {
         </CardContent>
       </Card>
 
-      {/* Section 2: Man of the Match Voting */}
+      {/* Section 2: Player of the Match Voting */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-yellow-500" />
-            Man of the Match
+            Player of the Match
           </CardTitle>
         </CardHeader>
         <CardContent>

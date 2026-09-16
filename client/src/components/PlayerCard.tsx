@@ -120,7 +120,7 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
   if ((s?.positionVariety ?? 0) >= 2) insights.push(`🔄 Played ${s!.positionVariety} different positions`);
   if (cleanSheets > 0) insights.push(`🧤 Clean sheet in ${cleanSheets} ${cleanSheets === 1 ? 'period' : 'periods'}`);
   if (apps > 0) insights.push(`⏱️ Averages ${s?.avgMinutesPerAppearance ?? Math.round(totalMins / apps)} mins per game`);
-  if ((s?.motmAwards ?? 0) > 0) insights.push(`🏆 Man of the Match ${s!.motmAwards}×`);
+  if ((s?.motmAwards ?? 0) > 0) insights.push(`🏆 Player of the Match ${s!.motmAwards}×`);
   const topInsights = insights.slice(0, 3);
 
   // Compact "by the numbers" footer figures
@@ -130,7 +130,7 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
     { label: 'Assists', value: assists },
     { label: 'Mins', value: totalMins },
     { label: 'CS', value: cleanSheets },
-    { label: 'MOTM', value: s?.motmAwards ?? 0 },
+    { label: 'POTM', value: s?.motmAwards ?? 0 },
   ];
 
   const topBadges = [...(badges ?? [])].sort((a, b) => (b.points ?? 0) - (a.points ?? 0)).slice(0, 6);
