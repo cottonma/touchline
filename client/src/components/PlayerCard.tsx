@@ -24,6 +24,34 @@ export interface PlayerCardData {
 
 const TIER_MEDAL: Record<string, string> = { bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
 
+interface GroupedBadge {
+  badgeType: string;
+  title: string;
+  tier: string;
+  points: number; // total points across all of this type
+  count: number;  // how many earned
+}
+
+/**
+ * Collapse repeatable badges (e.g. Clean Sheet, Shutout, Hat-trick) that a
+ * player has earned multiple times into a single trophy with a count, instead
+ * of showing three identical "Clean Sheet" trophies. Points are summed so the
+ * Trophy Points total is unchanged; the cabinet just looks tidy.
+ */
+function groupBadges(list: { badgeType: string; title: string; tier: string; points: number }[]): GroupedBadge[] {
+  const map = new Map<string, GroupedBadge>();
+  for (const b of list) {
+    const existing = map.get(b.badgeType);
+    if (existing) {
+      existing.count += 1;
+      existing.points += b.points ?? 0;
+    } else {
+      map.set(b.badgeType, { badgeType: b.badgeType, title: b.title, tier: b.tier, points: b.points ?? 0, count: 1 });
+    }
+  }
+  return [...map.values()];
+}
+
 // Deterministic colour from a name so each player has a consistent accent
 function accentFor(name: string): { from: string; to: string; solid: string } {
   const palettes = [
@@ -133,7 +161,9 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
     { label: 'POTM', value: s?.motmAwards ?? 0 },
   ];
 
-  const topBadges = [...(badges ?? [])].sort((a, b) => (b.points ?? 0) - (a.points ?? 0)).slice(0, 6);
+  const topBadges = groupBadges(badges ?? [])
+    .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
+    .slice(0, 6);
   const positions = s?.positionsPlayed ?? [];
   const form = (data.recentResults ?? []).slice(0, 5);
 
@@ -254,8 +284,8 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
               <p className="text-[10px] uppercase tracking-widest opacity-80 mb-1">Trophy cabinet</p>
               <div className="flex flex-wrap gap-1.5">
                 {topBadges.map((b) => (
-                  <span key={b.id} className="text-[10px] font-medium bg-white/15 rounded-full px-2 py-1 flex items-center gap-1">
-                    <span>{TIER_MEDAL[b.tier] ?? '⭐'}</span>{b.title}
+                  <span key={b.badgeType} className="text-[10px] font-medium bg-white/15 rounded-full px-2 py-1 flex items-center gap-1">
+                    <span>{TIER_MEDAL[b.tier] ?? '⭐'}</span>{b.title}{b.count > 1 ? ` ×${b.count}` : ''}
                   </span>
                 ))}
               </div>
@@ -327,7 +357,7 @@ async function downloadCardImage(
   data: PlayerCardData,
   trophyPoints: number,
   a: CardAnalytics,
-  badges: { title: string; tier: string }[],
+  badges: { title: string; tier: string; count: number }[],
   positions: string[],
   form: { result: string | null }[],
   accent: { from: string; to: string; solid: string },
@@ -523,7 +553,7 @@ async function downloadCardImage(
     const medal: Record<string, string> = { bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
     let cx = pad;
     for (const b of badges) {
-      const label = `${medal[b.tier] ?? '⭐'} ${b.title}`;
+      const label = `${medal[b.tier] ?? '⭐'} ${b.title}${b.count > 1 ? ` x${b.count}` : ''}`;
       const w = ctx.measureText(label).width + 20;
       if (cx + w > W - pad) { cx = pad; y += 34; }
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
