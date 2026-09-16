@@ -44,13 +44,45 @@ export const AUTO_BADGES: Record<string, BadgeDef> = {
   assists_20: { title: '20 Assists', emoji: '🎇', description: '20 assists this season', tier: 'gold', points: 45 },
   playmaker: { title: 'Playmaker', emoji: '🪄', description: '3 assists in one match', tier: 'gold', points: 25 },
 
-  // Clean sheets (season-scoped tiers)
-  clean_sheet: { title: 'Clean Sheet', emoji: '🧤', description: 'Kept a clean sheet', tier: 'bronze', points: 15 },
-  clean_sheets_5: { title: '5 Clean Sheets', emoji: '🛡️', description: '5 clean sheets this season', tier: 'silver', points: 30 },
-  clean_sheets_10: { title: '10 Clean Sheets', emoji: '🏰', description: '10 clean sheets this season', tier: 'gold', points: 60 },
+  // Clean sheets (season-scoped tiers) — a clean-sheet QUARTER played (any position)
+  clean_sheet: { title: 'Clean Sheet', emoji: '🧤', description: 'A clean-sheet quarter played', tier: 'bronze', points: 15 },
+  clean_sheets_5: { title: '5 Clean Sheets', emoji: '🛡️', description: '5 clean-sheet quarters this season', tier: 'silver', points: 30 },
+  clean_sheets_10: { title: '10 Clean Sheets', emoji: '🏰', description: '10 clean-sheet quarters this season', tier: 'gold', points: 45 },
+  clean_sheets_15: { title: '15 Clean Sheets', emoji: '🏯', description: '15 clean-sheet quarters this season', tier: 'gold', points: 55 },
+  clean_sheets_20: { title: '20 Clean Sheets', emoji: '🧱', description: '20 clean-sheet quarters this season', tier: 'platinum', points: 70 },
+
+  // Defensive clean sheets — clean-sheet quarters played in a DEFENDING position
+  def_clean_sheets_5: { title: 'Defensive Wall', emoji: '🚧', description: '5 clean-sheet quarters as a defender this season', tier: 'silver', points: 30 },
+  def_clean_sheets_10: { title: 'Back-line Rock', emoji: '🪨', description: '10 clean-sheet quarters as a defender this season', tier: 'gold', points: 55 },
+
+  // Goalkeeper shutouts — quarters in goal with no goal conceded that quarter
+  gk_shutout: { title: 'Shutout', emoji: '🧤', description: 'A quarter kept clean in goal', tier: 'bronze', points: 18 },
+  gk_shutouts_5: { title: '5 Shutouts', emoji: '🥅', description: '5 shutout quarters in goal this season', tier: 'silver', points: 35 },
+  gk_shutouts_10: { title: '10 Shutouts', emoji: '🧤', description: '10 shutout quarters in goal this season', tier: 'gold', points: 60 },
+
+  // Goalkeeper minutes (career)
+  gk_mins_100: { title: 'Brave Keeper', emoji: '🧤', description: '100 minutes in goal', tier: 'silver', points: 25 },
+  gk_mins_250: { title: 'Safe Hands', emoji: '🥅', description: '250 minutes in goal', tier: 'gold', points: 50 },
+
+  // Total minutes / commitment (career)
+  mins_250: { title: '250 Minutes', emoji: '⏱️', description: '250 total minutes played', tier: 'bronze', points: 20 },
+  mins_500: { title: '500 Minutes', emoji: '⏰', description: '500 total minutes played', tier: 'silver', points: 40 },
+  ever_present: { title: 'Ever-present', emoji: '📅', description: 'Played 5 matches in a row', tier: 'silver', points: 30 },
+
+  // Versatility
+  utility_player: { title: 'Utility Player', emoji: '🧰', description: 'Played 3+ different positions this season', tier: 'silver', points: 30 },
+  all_rounder: { title: 'All-rounder', emoji: '🌐', description: 'Played in defence, midfield, attack and goal', tier: 'gold', points: 45 },
 
   // Development
   dev_star: { title: 'Development Star', emoji: '⭐', description: 'Achieved a development goal', tier: 'silver', points: 25 },
+};
+
+// Position → zone mapping for defensive / all-rounder badges
+const POSITION_ZONE: Record<string, 'defence' | 'midfield' | 'attack' | 'gk'> = {
+  GK: 'gk',
+  CB: 'defence', LB: 'defence', RB: 'defence', LCB: 'defence', RCB: 'defence', LWB: 'defence', RWB: 'defence',
+  CM: 'midfield', LM: 'midfield', RM: 'midfield', LCM: 'midfield', RCM: 'midfield',
+  CF: 'attack', ST: 'attack',
 };
 
 /**
@@ -215,26 +247,126 @@ export class BadgeService {
       if (countThisMatch >= 3) await this.awardAuto('playmaker', assisterId, clubId, seasonId, fixtureId, { repeatable: true });
     }
 
-    // --- Clean sheets (season-scoped): only if the team kept a clean sheet this match ---
-    const [result] = await db.select().from(matchResults).where(eq(matchResults.fixtureId, fixtureId)).limit(1);
-    if (result && result.goalsAgainst === 0) {
-      // Award to players who played at least 2 periods in this match
-      const cleanSheetPlayers = fixturePlayingTime.filter((pt) => pt.periodsPlayed + pt.periodsInGoal >= 2);
-      // Season clean-sheet count per player = matches (season) with GA=0 where they played >=2 periods
-      const allResults = await db.select().from(matchResults);
-      const allPlayingTime = await db.select().from(playingTime);
-      for (const pt of cleanSheetPlayers) {
+    // ── Per-quarter defensive / GK badges (season-scoped) ──
+    // Load season match results + playing time once for season totals.
+    const allResults = await db.select().from(matchResults);
+    const allPlayingTime = await db.select().from(playingTime);
+    const inSeason = (fid: string) => seasonFixtureIds.size === 0 || seasonFixtureIds.has(fid);
+
+    // Helper: for a fixture, which periods did the opponent NOT score in?
+    const cleanPeriodsFor = (fid: string): Set<number> => {
+      const r = allResults.find((x) => x.fixtureId === fid);
+      const set = new Set<number>();
+      if (r?.periodScores) {
+        try {
+          const scores = JSON.parse(r.periodScores) as { period: number; goalsFor: number; goalsAgainst: number }[];
+          for (const ps of scores) if ((ps.goalsAgainst ?? 0) === 0) set.add(ps.period);
+        } catch { /* no per-period data */ }
+      }
+      return set;
+    };
+
+    // Count season totals of clean-sheet quarters (any / defensive) and GK shutout quarters for a player.
+    const seasonQuarterTotals = (pid: string) => {
+      let cs = 0, defCs = 0, gkShut = 0;
+      for (const p of allPlayingTime) {
+        if (p.playerId !== pid || !inSeason(p.fixtureId)) continue;
+        const cleanPeriods = cleanPeriodsFor(p.fixtureId);
+        if (cleanPeriods.size === 0 || !p.periodsDetail) continue;
+        let detail: { period: number; minutes: number; position: string; isGk: boolean }[] = [];
+        try { detail = JSON.parse(p.periodsDetail); } catch { continue; }
+        // group minutes/position by period
+        for (const period of cleanPeriods) {
+          const segs = detail.filter((d) => d.period === period);
+          if (segs.length === 0) continue;
+          const played = segs.reduce((s, d) => s + (d.minutes ?? 0), 0);
+          // must have played the full quarter to earn credit (consistent with stats)
+          // approximate full quarter as any segment covering the period; use minutes>0 + on for whole
+          if (played <= 0) continue;
+          cs++;
+          if (segs.some((d) => d.isGk)) gkShut++;
+          else if (segs.some((d) => POSITION_ZONE[d.position] === 'defence')) defCs++;
+        }
+      }
+      return { cs, defCs, gkShut };
+    };
+
+    // Award for players who featured this match
+    for (const pt of fixturePlayingTime) {
+      if (pt.totalMinutes <= 0) continue;
+      const pid = pt.playerId;
+      const cleanPeriods = cleanPeriodsFor(fixtureId);
+
+      // Did this player earn any clean-sheet / shutout quarter THIS match? (for repeatable per-match badges)
+      let earnedCleanThisMatch = false, earnedGkShutThisMatch = false;
+      if (cleanPeriods.size > 0 && pt.periodsDetail) {
+        try {
+          const detail = JSON.parse(pt.periodsDetail) as { period: number; minutes: number; position: string; isGk: boolean }[];
+          for (const period of cleanPeriods) {
+            const segs = detail.filter((d) => d.period === period);
+            if (segs.reduce((s, d) => s + (d.minutes ?? 0), 0) <= 0) continue;
+            earnedCleanThisMatch = true;
+            if (segs.some((d) => d.isGk)) earnedGkShutThisMatch = true;
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (earnedCleanThisMatch) await this.awardAuto('clean_sheet', pid, clubId, seasonId, fixtureId, { repeatable: true });
+      if (earnedGkShutThisMatch) await this.awardAuto('gk_shutout', pid, clubId, seasonId, fixtureId, { repeatable: true });
+
+      // Season tier totals
+      const { cs, defCs, gkShut } = seasonQuarterTotals(pid);
+      if (cs >= 5) await this.awardAuto('clean_sheets_5', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (cs >= 10) await this.awardAuto('clean_sheets_10', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (cs >= 15) await this.awardAuto('clean_sheets_15', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (cs >= 20) await this.awardAuto('clean_sheets_20', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (defCs >= 5) await this.awardAuto('def_clean_sheets_5', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (defCs >= 10) await this.awardAuto('def_clean_sheets_10', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (gkShut >= 5) await this.awardAuto('gk_shutouts_5', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (gkShut >= 10) await this.awardAuto('gk_shutouts_10', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+
+      // GK minutes (career)
+      const careerGkMins = allPlayingTime.filter((p) => p.playerId === pid).reduce((s, p) => s + p.goalkeeperMinutes, 0);
+      if (careerGkMins >= 100) await this.awardAuto('gk_mins_100', pid, clubId, seasonId, fixtureId);
+      if (careerGkMins >= 250) await this.awardAuto('gk_mins_250', pid, clubId, seasonId, fixtureId);
+
+      // Total minutes (career)
+      const careerMins = allPlayingTime.filter((p) => p.playerId === pid).reduce((s, p) => s + p.totalMinutes, 0);
+      if (careerMins >= 250) await this.awardAuto('mins_250', pid, clubId, seasonId, fixtureId);
+      if (careerMins >= 500) await this.awardAuto('mins_500', pid, clubId, seasonId, fixtureId);
+
+      // Versatility (season): distinct positions + all-rounder zones
+      const zones = new Set<string>();
+      const positions = new Set<string>();
+      for (const p of allPlayingTime) {
+        if (p.playerId !== pid || !inSeason(p.fixtureId) || !p.positionsPlayed) continue;
+        try {
+          for (const pos of JSON.parse(p.positionsPlayed) as string[]) {
+            if (!pos) continue;
+            positions.add(pos);
+            const z = POSITION_ZONE[pos]; if (z) zones.add(z);
+          }
+        } catch { /* ignore */ }
+      }
+      if (positions.size >= 3) await this.awardAuto('utility_player', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      if (zones.has('defence') && zones.has('midfield') && zones.has('attack') && zones.has('gk')) {
+        await this.awardAuto('all_rounder', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+      }
+    }
+
+    // ── Ever-present: played the last 5 completed match fixtures in a row (career) ──
+    const completedMatchFixtures = (await db.select().from(fixtures))
+      .filter((f) => f.status === 'completed' && f.type !== 'training' && inSeason(f.id))
+      .sort((a, b) => b.date.localeCompare(a.date)); // most recent first
+    if (completedMatchFixtures.length >= 5) {
+      const lastFive = completedMatchFixtures.slice(0, 5).map((f) => f.id);
+      for (const pt of fixturePlayingTime) {
+        if (pt.totalMinutes <= 0) continue;
         const pid = pt.playerId;
-        const seasonCleanSheets = allPlayingTime.filter((p) => {
-          if (p.playerId !== pid) return false;
-          if (seasonFixtureIds.size > 0 && !seasonFixtureIds.has(p.fixtureId)) return false;
-          if (p.periodsPlayed + p.periodsInGoal < 2) return false;
-          const r = allResults.find((x) => x.fixtureId === p.fixtureId);
-          return r && r.goalsAgainst === 0;
-        }).length;
-        await this.awardAuto('clean_sheet', pid, clubId, seasonId, fixtureId, { repeatable: true });
-        if (seasonCleanSheets >= 5) await this.awardAuto('clean_sheets_5', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
-        if (seasonCleanSheets >= 10) await this.awardAuto('clean_sheets_10', pid, clubId, seasonId, fixtureId, { seasonScopedUnique: true });
+        const playedAll = lastFive.every((fid) =>
+          allPlayingTime.some((p) => p.playerId === pid && p.fixtureId === fid && p.totalMinutes > 0)
+        );
+        if (playedAll) await this.awardAuto('ever_present', pid, clubId, seasonId, fixtureId);
       }
     }
   }

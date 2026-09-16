@@ -699,6 +699,31 @@ Added `tier`, `points`, and `season_id` to the badges table. Award points/tier c
 
 ---
 
+## Trophy Cabinet: Defensive, Goalkeeper, Commitment & Versatility Badges
+
+Extended the auto-badge set so defenders, goalkeepers and hard-working squad players are recognised as richly as scorers. All new milestone detection is **per-quarter**, driven by `matchResults.periodScores` (per-period goals for/against) combined with `playingTime.periodsDetail` (which position each player held in each period, and whether they were in goal).
+
+### Why per-quarter
+
+The team plays quarters, and goalkeepers rotate by half (two quarters). Attributing clean sheets and shutouts per quarter means a keeper who plays one half of a clean game earns credit for the quarters they actually kept clean, and outfield defenders earn credit only for the quarters they were on the pitch in a defending position while the opponent didn't score.
+
+### New automatic badges
+
+- **Clean-sheet tiers extended (season):** 5, 10, 15, 20 clean-sheet quarters (any position on the pitch during a quarter the opponent didn't score). "Clean Sheet" itself remains repeatable per qualifying quarter.
+- **Defensive clean sheets (season):** Defensive Wall (5) and Back-line Rock (10) — clean-sheet quarters played specifically in a defending position (CB/LB/RB/wing-backs).
+- **Goalkeeper shutouts (season):** Shutout (repeatable per clean quarter kept in goal), plus 5 and 10 shutout-quarter tiers.
+- **Goalkeeper minutes (career):** Brave Keeper (100) and Safe Hands (250) total minutes in goal.
+- **Commitment / total minutes (career):** 250 and 500 total minutes played; Ever-present for playing the last 5 completed matches in a row.
+- **Versatility (season):** Utility Player (3+ different positions) and All-rounder (featured in defence, midfield, attack and goal).
+
+A `POSITION_ZONE` map classifies each position into defence / midfield / attack / gk to drive the defensive and all-rounder detection.
+
+### Backfill
+
+Existing completed fixtures were reprocessed once through `checkAutoBadges` (chronologically, so career streaks build correctly). Because the award logic is once-only / season-unique, the backfill is idempotent and created no duplicates.
+
+---
+
 ## Coaching Philosophy Now Drives Team Selection
 
 Previously the philosophy / match objective settings were inert (only the AI chat used philosophy). They now actually change the auto-generated team via three selection strategies in the playing-time engine.
