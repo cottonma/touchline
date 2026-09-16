@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useCreatePlayer, useUpdatePlayer } from '@/hooks/use-players';
 import type { Player, CreatePlayerInput } from '@/services/player.service';
+import { fileToSquareDataUrl } from '@/lib/image';
 
 interface PlayerFormProps {
   player?: Player; // If provided, we're editing
@@ -43,6 +44,7 @@ export function PlayerForm({ player, onClose, onSuccess }: PlayerFormProps) {
     secondaryPosition: player?.secondaryPosition ?? undefined,
     tertiaryPosition: player?.tertiaryPosition ?? undefined,
     isGkVolunteer: player?.isGkVolunteer ?? false,
+    photoUrl: player?.photoUrl ?? undefined,
     parentName: player?.parentName ?? undefined,
     parentEmail: player?.parentEmail ?? undefined,
     parentPhone: player?.parentPhone ?? undefined,
@@ -50,6 +52,16 @@ export function PlayerForm({ player, onClose, onSuccess }: PlayerFormProps) {
   });
 
   const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handlePhoto = async (file: File) => {
+    try {
+      const dataUrl = await fileToSquareDataUrl(file, 256);
+      handleChange('photoUrl', dataUrl);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not process image.');
+    }
+  };
 
   const handleChange = (field: keyof CreatePlayerInput, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -81,6 +93,7 @@ export function PlayerForm({ player, onClose, onSuccess }: PlayerFormProps) {
           secondaryPosition: formData.secondaryPosition || null,
           tertiaryPosition: formData.tertiaryPosition || null,
           isGkVolunteer: formData.isGkVolunteer ?? false,
+          photoUrl: formData.photoUrl || null,
           shirtNumber: formData.shirtNumber ?? null,
           dateOfBirth: formData.dateOfBirth || null,
           preferredFoot: formData.preferredFoot || null,
@@ -129,6 +142,26 @@ export function PlayerForm({ player, onClose, onSuccess }: PlayerFormProps) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Photo */}
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 rounded-full overflow-hidden border bg-muted/40 flex items-center justify-center shrink-0">
+            {formData.photoUrl ? (
+              <img src={formData.photoUrl} alt="Player" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs text-muted-foreground">No photo</span>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhoto(f); }} />
+            <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              <Upload className="h-4 w-4" /> {formData.photoUrl ? 'Replace photo' : 'Upload photo'}
+            </Button>
+            {formData.photoUrl && (
+              <button type="button" className="text-xs text-muted-foreground text-left" onClick={() => handleChange('photoUrl', undefined)}>Remove</button>
+            )}
+          </div>
+        </div>
+
         {/* Basic Info */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">

@@ -787,3 +787,22 @@ Card background is a gradient from the club colour; small crest on a white panel
 ### Access
 
 Added `GET /clubs/:id` (any authenticated user) so parents and non-admin coaches can read their club's branding — the existing `/auth/clubs` is admin-only. Parent cards resolve the club from the child's `clubId`.
+
+---
+
+## Player Photos
+
+Players can have a photo, shown in the Player Card avatar (falls back to coloured initials).
+
+### Storage & processing
+
+Photos are centre-cropped to a square, downscaled to 256px, and stored as a JPEG **data URL** on `players.photoUrl` (consistent with the crest — inline storage keeps the canvas card download working with no external hosting). Shared helper `client/src/lib/image.ts` (`fileToSquareDataUrl`).
+
+### Who can upload
+
+- **Coach:** upload on the Player add/edit form.
+- **Parent:** upload/change their own child's photo from the Parent Portal via `POST /parent/photo` (server enforces it only updates the parent's linked child).
+
+### Card rendering
+
+The card avatar shows the photo (cover-fit, circular) on-screen and in the downloaded PNG (drawn clipped into the avatar circle); initials remain the fallback. `photoUrl` validation relaxed from a strict URL to a length-capped string to accept data URLs.

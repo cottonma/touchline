@@ -17,7 +17,8 @@ export const createPlayerSchema = z.object({
   secondaryPosition: positionEnum.optional(),
   tertiaryPosition: positionEnum.optional(),
   isGkVolunteer: z.boolean().optional().default(false),
-  photoUrl: z.string().url().optional(),
+  // Accept a URL or a base64 data URL (player photo stored inline), capped ~1.5MB
+  photoUrl: z.string().max(1_500_000).optional(),
   parentName: z.string().max(100).optional(),
   parentEmail: z.string().email('Invalid email address').optional().or(z.literal('')),
   parentPhone: z.string().max(20).optional(),
@@ -34,7 +35,7 @@ export const updatePlayerSchema = z.object({
   secondaryPosition: positionEnum.nullable().optional(),
   tertiaryPosition: positionEnum.nullable().optional(),
   isGkVolunteer: z.boolean().optional(),
-  photoUrl: z.string().url().nullable().optional(),
+  photoUrl: z.string().max(1_500_000).nullable().optional(),
   parentName: z.string().max(100).nullable().optional(),
   parentEmail: z.string().email().nullable().optional().or(z.literal('')),
   parentPhone: z.string().max(20).nullable().optional(),

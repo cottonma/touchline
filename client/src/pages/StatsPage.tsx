@@ -345,6 +345,7 @@ function PlayerCardsView({ stats, results }: { stats: PlayerSeasonStats[]; resul
             clubName: club.name,
             crestUrl: club.badgeUrl,
             primaryColor: club.kitColourHome,
+            photoUrl: player.photoUrl,
             stats: playerStat,
             recentResults: results,
           }}

@@ -125,6 +125,36 @@ parentRoutes.post('/availability', async (req, res) => {
 });
 
 /**
+ * POST /api/parent/photo
+ * Update the photo for the parent's own linked child only.
+ * Body: { photoUrl } — a data URL (base64) under ~1.5MB, or null to clear.
+ */
+parentRoutes.post('/photo', async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { photoUrl } = req.body;
+
+    if (photoUrl !== null && (typeof photoUrl !== 'string' || photoUrl.length > 1_500_000)) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'photoUrl must be a data URL under ~1.5MB' });
+      return;
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user || !(user as any).playerId) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: 'No child linked to this account' });
+      return;
+    }
+    const playerId = (user as any).playerId;
+
+    await db.update(players).set({ photoUrl: photoUrl ?? null, updatedAt: new Date().toISOString() } as any).where(eq(players.id, playerId));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[parent/photo]', err);
+    res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to update photo' });
+  }
+});
+
+/**
  * GET /api/parent/motm/:fixtureId
  * Get current MOTM vote for this parent for a specific fixture.
  */

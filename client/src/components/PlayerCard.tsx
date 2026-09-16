@@ -19,6 +19,7 @@ export interface PlayerCardData {
   recentResults?: { result: string | null }[]; // most-recent first
   crestUrl?: string | null;      // club crest (data URL) if set
   primaryColor?: string | null;  // club primary colour (hex) if set
+  photoUrl?: string | null;      // player photo (data URL) if set
 }
 
 const TIER_MEDAL: Record<string, string> = { bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
@@ -184,8 +185,12 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
 
           {/* Hero: avatar + name */}
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-2xl font-black">
-              {initials(data.name).toUpperCase()}
+            <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-2xl font-black overflow-hidden shrink-0">
+              {data.photoUrl ? (
+                <img src={data.photoUrl} alt={data.name} className="w-full h-full object-cover" />
+              ) : (
+                initials(data.name).toUpperCase()
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-xl font-black leading-tight truncate">{data.name}</p>
@@ -334,16 +339,12 @@ async function downloadCardImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  // Preload the crest (data URL — same origin, safe for canvas export)
-  let crestImg: HTMLImageElement | null = null;
-  if (crestUrl) {
-    crestImg = await new Promise<HTMLImageElement | null>((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = crestUrl;
-    });
-  }
+  // Preload images (data URLs — same origin, safe for canvas export)
+  const loadImg = (src: string | null) => src
+    ? new Promise<HTMLImageElement | null>((resolve) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => resolve(null); i.src = src; })
+    : Promise.resolve(null);
+  const crestImg = await loadImg(crestUrl);
+  const photoImg = await loadImg(data.photoUrl ?? null);
 
   // Background gradient
   const grad = ctx.createLinearGradient(0, 0, W, H);
@@ -392,16 +393,27 @@ async function downloadCardImage(
 
   // Avatar circle
   const avY = pad + 110;
-  ctx.beginPath();
-  ctx.arc(pad + 44, avY + 44, 44, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  ctx.fill();
-  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.stroke();
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 40px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(initials(data.name).toUpperCase(), pad + 44, avY + 22);
-  ctx.textAlign = 'left';
+  const acx = pad + 44, acy = avY + 44, ar = 44;
+  if (photoImg) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(acx, acy, ar, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+    // cover-fit the (square) photo into the circle's bounding box
+    ctx.drawImage(photoImg, acx - ar, acy - ar, ar * 2, ar * 2);
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(acx, acy, ar, 0, Math.PI * 2);
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(acx, acy, ar, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 40px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(initials(data.name).toUpperCase(), acx, avY + 22);
+    ctx.textAlign = 'left';
+  }
 
   // Name + position
   ctx.fillStyle = '#fff';

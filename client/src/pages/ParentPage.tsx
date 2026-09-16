@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { formatScoreline } from '@/lib/utils';
 import { PlayerCard } from '@/components/PlayerCard';
 import { usePlayerStats } from '@/hooks/use-statistics';
+import { fileToSquareDataUrl } from '@/lib/image';
+import { useRef } from 'react';
 
 interface Player {
   id: string;
@@ -16,6 +18,8 @@ interface Player {
   shirtNumber: number | null;
   primaryPosition: string;
   isActive: boolean;
+  photoUrl?: string | null;
+  clubId?: string | null;
 }
 
 interface Fixture {
@@ -173,6 +177,18 @@ export function ParentPage() {
     }
   };
 
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const handlePhotoUpload = async (file: File) => {
+    if (!child) return;
+    try {
+      const dataUrl = await fileToSquareDataUrl(file, 256);
+      await api.post('/parent/photo', { photoUrl: dataUrl });
+      setChild((prev) => (prev ? { ...prev, photoUrl: dataUrl } as any : prev));
+    } catch (e: any) {
+      alert(e.message || 'Could not upload photo');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -207,10 +223,19 @@ export function ParentPage() {
         <div>
           <h1 className="text-2xl font-bold">Parent Portal</h1>
           {child && (
-            <p className="text-muted-foreground text-sm">
-              {child.firstName} {child.lastName} — {child.primaryPosition}
-              {child.shirtNumber ? ` (#${child.shirtNumber})` : ''}
-            </p>
+            <>
+              <p className="text-muted-foreground text-sm">
+                {child.firstName} {child.lastName} — {child.primaryPosition}
+                {child.shirtNumber ? ` (#${child.shirtNumber})` : ''}
+              </p>
+              <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                className="text-xs text-primary underline mt-0.5"
+              >
+                {child.photoUrl ? 'Change photo' : 'Add a photo'}
+              </button>
+            </>
           )}
           {!child && (
             <p className="text-amber-600 text-sm">No child linked to your account. Ask your coach to link your player.</p>
@@ -229,6 +254,7 @@ export function ParentPage() {
             clubName: club.name,
             crestUrl: club.badgeUrl,
             primaryColor: club.kitColourHome,
+            photoUrl: child.photoUrl,
             stats: (allSeasonStats ?? []).find((s) => s.playerId === child.id) ?? null,
             recentResults: completedFixtures
               .slice(0, 5)
