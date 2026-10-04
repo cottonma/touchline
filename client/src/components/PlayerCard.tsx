@@ -1,6 +1,8 @@
 import { useRef } from 'react';
-import { Download } from 'lucide-react';
-import { usePlayerBadges } from '@/hooks/use-badges';
+import { Download, TrendingUp } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { usePlayerBadges, type Badge } from '@/hooks/use-badges';
+import { useFixtures } from '@/hooks/use-fixtures';
 import type { PlayerSeasonStats } from '@/services/statistics.service';
 
 /**
@@ -545,6 +547,100 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
           <Download className="h-4 w-4" /> Save card as image
         </button>
       </div>
+
+      {/* Points journey graph */}
+      <PointsJourney badges={badges ?? []} accentColor={accent.solid} />
+    </div>
+  );
+}
+
+/**
+ * "Points journey" — a cumulative trophy-points line showing how a player's
+ * total has grown game by game. Built from the badges' own timestamps and
+ * fixture links. Purely motivational (points earned, never a rating).
+ */
+function PointsJourney({ badges, accentColor }: { badges: Badge[]; accentColor: string }) {
+  const { data: fixtures } = useFixtures();
+
+  if (!badges || badges.length === 0) return null;
+
+  // Map fixtureId → match label/date for nicer x-axis points.
+  const fixtureInfo = new Map<string, { date: string; label: string }>();
+  for (const f of fixtures ?? []) {
+    fixtureInfo.set(f.id, { date: f.date, label: f.opponent ? `v ${f.opponent}` : f.date });
+  }
+
+  // Group badges into "events": by fixture when present, otherwise by the day
+  // the badge was awarded (coach character badges with no fixture).
+  type Group = { key: string; sortDate: string; label: string; points: number };
+  const groups = new Map<string, Group>();
+  for (const b of badges) {
+    let key: string, sortDate: string, label: string;
+    if (b.fixtureId && fixtureInfo.has(b.fixtureId)) {
+      const info = fixtureInfo.get(b.fixtureId)!;
+      key = `fx:${b.fixtureId}`; sortDate = info.date; label = info.label;
+    } else if (b.fixtureId) {
+      key = `fx:${b.fixtureId}`; sortDate = b.createdAt; label = 'Match';
+    } else {
+      const day = (b.createdAt ?? '').slice(0, 10);
+      key = `day:${day}`; sortDate = b.createdAt; label = 'Award';
+    }
+    const g = groups.get(key) ?? { key, sortDate, label, points: 0 };
+    g.points += b.points ?? 0;
+    if (sortDate < g.sortDate) g.sortDate = sortDate;
+    groups.set(key, g);
+  }
+
+  const ordered = [...groups.values()].sort((a, b) => a.sortDate.localeCompare(b.sortDate));
+  if (ordered.length < 2) return null; // a graph needs at least two points to show growth
+
+  // Build cumulative series. Start at a 0 baseline so the first game shows a rise.
+  let running = 0;
+  const data = ordered.map((g, i) => {
+    running += g.points;
+    const d = new Date(g.sortDate);
+    const dateLabel = isNaN(d.getTime()) ? `#${i + 1}` : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return { name: dateLabel, match: g.label, points: running, gained: g.points };
+  });
+
+  const total = running;
+
+  return (
+    <div className="max-w-sm mx-auto bg-card border rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4" style={{ color: accentColor }} />
+          <span className="text-sm font-semibold">Points journey</span>
+        </div>
+        <span className="text-xs text-muted-foreground">{total} total</span>
+      </div>
+      <div className="h-44 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+            <defs>
+              <linearGradient id="pointsFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accentColor} stopOpacity={0.5} />
+                <stop offset="100%" stopColor={accentColor} stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={32} allowDecimals={false} />
+            <Tooltip
+              contentStyle={{ fontSize: 12, borderRadius: 8, padding: '6px 10px' }}
+              formatter={(value: number) => [`${value} pts`, 'Total']}
+              labelFormatter={(label: string, payload) => {
+                const p = payload && payload[0]?.payload;
+                return p ? `${label} · ${p.match} (+${p.gained})` : label;
+              }}
+            />
+            <Area type="monotone" dataKey="points" stroke={accentColor} strokeWidth={2.5} fill="url(#pointsFill)" dot={{ r: 3, fill: accentColor }} activeDot={{ r: 5 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-2 text-center">
+        How {total > 0 ? 'their' : 'the'} trophy points have grown — each point is a game or award.
+      </p>
     </div>
   );
 }
