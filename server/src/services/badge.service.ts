@@ -157,6 +157,18 @@ export class BadgeService {
     if (!params.repeatable) {
       const has = await this.hasBadge(params.playerId, params.badgeType, params.seasonScopedUnique ? params.seasonId : undefined);
       if (has) return false;
+    } else if (params.fixtureId) {
+      // Repeatable badges (hat-trick, clean sheet, shutout, playmaker) can be
+      // earned in many matches but only ONCE per match — otherwise re-running
+      // the check (e.g. a backfill) duplicates them for the same fixture.
+      const existing = await db.select({ id: badges.id }).from(badges).where(
+        and(
+          eq(badges.playerId, params.playerId),
+          eq(badges.badgeType, params.badgeType),
+          eq(badges.fixtureId, params.fixtureId),
+        ),
+      );
+      if (existing.length > 0) return false;
     }
 
     await db.insert(badges).values({
