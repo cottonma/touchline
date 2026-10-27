@@ -8,11 +8,14 @@ import { PitchView } from '@/components/match-planning/PitchView';
 import { buildQuarterPitch } from '@/components/match-planning/quarterPitch';
 
 /**
- * Lineup editor for a COMPLETED match — primarily to record "Power Play" players:
- * grassroots rule where a team 4+ goals behind may add an extra outfield player
- * (and a 2nd at 6+ behind). Advisory, not enforced. Each Power Play player is a
- * slot with its own on/off minute within the quarter, so minutes stay accurate.
- * Shows a pitch graphic per quarter (same as team selection) including extras.
+ * Lineup editor for a COMPLETED match. Two jobs:
+ *  1) Fix the recorded lineup — tap two positions on a quarter's pitch to SWAP
+ *     the players (works for swapping the goalkeeper with an outfielder too), so
+ *     the record matches what actually happened.
+ *  2) Add "Power Play" players — grassroots rule: a team 4+ goals behind may add
+ *     an extra outfield player (a 2nd at 6+ behind). Each is a slot with its own
+ *     on/off minute, so minutes stay accurate.
+ * Saving recalculates playing time from the slots.
  */
 
 interface Slot {
@@ -34,7 +37,6 @@ const POSITION_ZONE: Record<string, 'defence' | 'midfield' | 'attack'> = {
   CF: 'attack', ST: 'attack', LW: 'attack', RW: 'attack',
 };
 
-/** How many Power Play players are permitted for a given goal deficit. */
 function allowedExtras(deficit: number): number {
   if (deficit >= 6) return 2;
   if (deficit >= 4) return 1;
@@ -60,6 +62,10 @@ export function LineupEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  // Selected pitch slot for swapping: { period, slotId } where slotId is the
+  // buildQuarterPitch slot id (position-based).
+  const [selected, setSelected] = useState<{ period: number; slotId: string } | null>(null);
 
   useEffect(() => {
     api.get<any>(`/match-plans/${fixtureId}`).then((res) => {
@@ -74,7 +80,6 @@ export function LineupEditor({
   const periods = [...new Set(periodScores.map((p) => p.period))].sort((a, b) => a - b);
   const periodList = periods.length ? periods : [1, 2, 3, 4];
 
-  // Our deficit by end of a quarter (goalsFor/Against are our-team perspective).
   const deficitAtPeriod = (period: number) => {
     let gf = 0, ga = 0;
     for (const ps of periodScores) if (ps.period <= period) { gf += ps.goalsFor; ga += ps.goalsAgainst; }
@@ -86,9 +91,50 @@ export function LineupEditor({
 
   const addExtra = (period: number) => {
     setSlots((prev) => [...prev, { period, playerId: '', position: 'CM', isGk: false, startMinute: 0, endMinute: periodDuration }]);
+    setDirty(true);
   };
-  const updateSlot = (idx: number, patch: Partial<Slot>) => setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
-  const removeSlot = (idx: number) => setSlots((prev) => prev.filter((_, i) => i !== idx));
+  const updateSlot = (idx: number, patch: Partial<Slot>) => { setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s))); setDirty(true); };
+  const removeSlot = (idx: number) => { setSlots((prev) => prev.filter((_, i) => i !== idx)); setDirty(true); };
+
+  /**
+   * Swap the two players occupying positionA and positionB in a period. Handles
+   * GK↔outfield swaps: the player moving into goal becomes isGk (position 'GK'
+   * kept as their outfield label is irrelevant for GK), and vice versa. Moves
+   * ALL time-segments at each position so subs swap cleanly.
+   */
+  const swapPositions = (period: number, aIsGk: boolean, aPos: string, bIsGk: boolean, bPos: string) => {
+    setSlots((prev) => prev.map((s) => {
+      if (s.period !== period) return s;
+      const atA = s.isGk === aIsGk && (aIsGk || s.position === aPos);
+      const atB = s.isGk === bIsGk && (bIsGk || s.position === bPos);
+      if (atA) return { ...s, isGk: bIsGk, position: bIsGk ? 'GK' : bPos };
+      if (atB) return { ...s, isGk: aIsGk, position: aIsGk ? 'GK' : aPos };
+      return s;
+    }));
+    setDirty(true);
+  };
+
+  /** Resolve a buildQuarterPitch slot id back to { isGk, position } for a period. */
+  const handleSlotTap = (period: number, pitchSlotId: string, pitchSlotPos: string, pitchSlotIsGk: boolean) => {
+    if (!selected || selected.period !== period) {
+      setSelected({ period, slotId: pitchSlotId });
+      return;
+    }
+    if (selected.slotId === pitchSlotId) { setSelected(null); return; }
+
+    // Find the previously-selected slot's position/isGk from current pitch render.
+    const periodSlots = slots.filter((s) => s.period === period && s.playerId);
+    const { pitchSlots } = buildQuarterPitch(periodSlots, players);
+    const prevPitch = pitchSlots.find((ps) => ps.id === selected.slotId);
+    if (!prevPitch) { setSelected({ period, slotId: pitchSlotId }); return; }
+
+    swapPositions(
+      period,
+      !!prevPitch.isGk, prevPitch.position,
+      pitchSlotIsGk, pitchSlotPos,
+    );
+    setSelected(null);
+  };
 
   const save = async () => {
     if (slots.some((s) => !s.playerId)) { setError('Every added player needs to be selected.'); return; }
@@ -116,11 +162,10 @@ export function LineupEditor({
     <div className="space-y-4">
       <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-100 p-3 text-xs text-blue-900">
         <Info className="h-4 w-4 shrink-0 mt-0.5" />
-        <p>
-          Power Play rule: 4+ goals behind allows 1 extra outfield player, 6+ behind allows a 2nd.
-          Add the Power Play player to the quarter they came on, and set the minute. This is guidance —
-          add what actually happened on the day.
-        </p>
+        <div className="space-y-1">
+          <p><strong>Fix positions:</strong> tap a player on the pitch, then tap another to swap them (including swapping a player in or out of goal).</p>
+          <p><strong>Power Play:</strong> 4+ goals behind allows 1 extra outfield player, 6+ behind allows a 2nd. Add them to the quarter they came on and set the minute. Guidance only — record what actually happened.</p>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -132,9 +177,9 @@ export function LineupEditor({
           const currentExtras = isFinite(standardOutfield) ? Math.max(0, outfield - standardOutfield) : 0;
           const extraSlots = periodSlotsIdx.filter(({ s }) => isExtra(s, standardOutfield, periodSlotsIdx.map((x) => x.s)));
 
-          // Pitch graphic for this quarter (only slots with a player chosen).
           const renderable = periodSlotsIdx.map(({ s }) => s).filter((s) => s.playerId);
           const { formation, pitchSlots } = buildQuarterPitch(renderable, players);
+          const selectedSlotId = selected?.period === period ? selected.slotId : null;
 
           return (
             <div key={period} className="rounded-lg border p-3 space-y-2">
@@ -145,9 +190,22 @@ export function LineupEditor({
                 </span>
               </div>
 
-              {/* Pitch graphic */}
+              {/* Interactive pitch — tap two positions to swap */}
               {renderable.length > 0 && (
-                <PitchView formation={formation} slots={pitchSlots} availablePlayers={players as any[]} />
+                <PitchView
+                  formation={formation}
+                  slots={pitchSlots}
+                  availablePlayers={players as any[]}
+                  selectedSlotId={selectedSlotId}
+                  onSlotTap={(slotId) => {
+                    const ps = pitchSlots.find((x) => x.id === slotId);
+                    if (!ps || !ps.playerId) return; // only swap filled positions
+                    handleSlotTap(period, slotId, ps.position, !!ps.isGk);
+                  }}
+                />
+              )}
+              {selectedSlotId && (
+                <p className="text-[11px] text-blue-600">Tap another position to swap, or tap the same one to cancel.</p>
               )}
 
               {/* Power Play editors */}
@@ -188,7 +246,7 @@ export function LineupEditor({
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <Button onClick={save} disabled={saving}>
+        <Button onClick={save} disabled={saving || !dirty}>
           <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save & recalculate'}
         </Button>
         <Button variant="ghost" onClick={onClose}>
@@ -199,13 +257,9 @@ export function LineupEditor({
   );
 }
 
-/**
- * Identify "extra" (Power Play) outfield slots in a period: the surplus beyond
- * the standard outfield count, plus any slot newly added this session.
- */
 function isExtra(slot: Slot, standardOutfield: number, periodSlots: Slot[]): boolean {
   if (slot.isGk) return false;
-  if (!slot.id) return true; // newly added in this editing session
+  if (!slot.id) return true;
   if (!isFinite(standardOutfield)) return false;
   const outfield = periodSlots.filter((s) => !s.isGk);
   const surplus = outfield.length - standardOutfield;
