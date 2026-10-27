@@ -136,6 +136,21 @@ export function LineupEditor({
     setDirty(true);
   };
 
+  /**
+   * Replace the player currently at a position (outfield or GK) in a period with
+   * a bench player. Keeps the position, GK flag and all time-segments — only the
+   * playerId changes. Used to bring on someone not on the pitch that quarter
+   * (e.g. putting Tegh into goal in place of George).
+   */
+  const substituteAtPosition = (period: number, outIsGk: boolean, outPos: string, inPlayerId: string) => {
+    setSlots((prev) => prev.map((s) => {
+      if (s.period !== period) return s;
+      const atSlot = s.isGk === outIsGk && (outIsGk || s.position === outPos);
+      return atSlot ? { ...s, playerId: inPlayerId } : s;
+    }));
+    setDirty(true);
+  };
+
   /** Resolve a buildQuarterPitch slot id back to { isGk, position } for a period. */
   const handleSlotTap = (period: number, pitchSlotId: string, pitchSlotPos: string, pitchSlotIsGk: boolean) => {
     if (!selected || selected.period !== period) {
@@ -226,9 +241,35 @@ export function LineupEditor({
                   }}
                 />
               )}
-              {selectedSlotId && (
-                <p className="text-[11px] text-blue-600">Tap another position to swap, or tap the same one to cancel.</p>
-              )}
+              {selectedSlotId && (() => {
+                const sel = pitchSlots.find((ps) => ps.id === selectedSlotId);
+                const onPitchIds = new Set(renderable.map((s) => s.playerId));
+                const bench = players.filter((p) => !onPitchIds.has(p.id));
+                return (
+                  <div className="space-y-1.5 rounded-md bg-blue-50 border border-blue-100 p-2">
+                    <p className="text-[11px] text-blue-700">
+                      {sel?.playerName?.split(' ')[0]} selected ({sel?.isGk ? 'in goal' : sel?.position}).
+                      Tap another position to swap, or bring on a bench player:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value=""
+                        onChange={(e) => {
+                          if (!sel || !e.target.value) return;
+                          substituteAtPosition(period, !!sel.isGk, sel.position, e.target.value);
+                          setSelected(null);
+                        }}
+                        className="h-8 text-xs flex-1"
+                      >
+                        <option value="">Bring on from bench…</option>
+                        {bench.length === 0 && <option disabled>All players on the pitch</option>}
+                        {bench.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+                      </Select>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setSelected(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Power Play editors */}
               {extraSlots.map(({ s, i }) => (
