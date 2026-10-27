@@ -93,6 +93,28 @@ export function LineupEditor({
     setSlots((prev) => [...prev, { period, playerId: '', position: 'CM', isGk: false, startMinute: 0, endMinute: periodDuration }]);
     setDirty(true);
   };
+
+  /**
+   * Record a mid-quarter position change: a player switches position at a given
+   * minute. Splits their slot so they keep playing the whole time but in a new
+   * position for the later part (e.g. "Akelle: LB until 4', then LM after").
+   * Minutes are unchanged — only the position record splits.
+   */
+  const movePlayerMidQuarter = (period: number, playerId: string, atMinute: number, newPosition: string) => {
+    setSlots((prev) => {
+      const next: Slot[] = [];
+      for (const s of prev) {
+        const isTarget = s.period === period && s.playerId === playerId && !s.isGk
+          && s.startMinute < atMinute && s.endMinute > atMinute;
+        if (!isTarget) { next.push(s); continue; }
+        // Split: original position up to atMinute, new position after.
+        next.push({ ...s, endMinute: atMinute });
+        next.push({ ...s, id: undefined, position: newPosition, startMinute: atMinute });
+      }
+      return next;
+    });
+    setDirty(true);
+  };
   const updateSlot = (idx: number, patch: Partial<Slot>) => { setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s))); setDirty(true); };
   const removeSlot = (idx: number) => { setSlots((prev) => prev.filter((_, i) => i !== idx)); setDirty(true); };
 
@@ -238,6 +260,15 @@ export function LineupEditor({
                   {allowed <= currentExtras && <span className="ml-1 text-[10px] text-muted-foreground">(beyond rule)</span>}
                 </Button>
               )}
+
+              {/* Move a player mid-quarter */}
+              <MoveMidQuarter
+                period={period}
+                players={players}
+                outfielders={renderable.filter((s) => !s.isGk)}
+                periodDuration={periodDuration}
+                onApply={(pid, minute, pos) => movePlayerMidQuarter(period, pid, minute, pos)}
+              />
             </div>
           );
         })}
@@ -266,4 +297,64 @@ function isExtra(slot: Slot, standardOutfield: number, periodSlots: Slot[]): boo
   if (surplus <= 0) return false;
   const ranked = [...outfield].sort((a, b) => b.startMinute - a.startMinute);
   return ranked.slice(0, surplus).includes(slot);
+}
+
+/**
+ * Small form to record a player changing position partway through a quarter
+ * (e.g. "Akelle moved to left wing after 4 mins"). Splits that player's slot.
+ */
+function MoveMidQuarter({ period, players, outfielders, periodDuration, onApply }: {
+  period: number;
+  players: Player[];
+  outfielders: Slot[];
+  periodDuration: number;
+  onApply: (playerId: string, atMinute: number, newPosition: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [playerId, setPlayerId] = useState('');
+  const [minute, setMinute] = useState(Math.round(periodDuration / 2));
+  const [zone, setZone] = useState<'defence' | 'midfield' | 'attack'>('midfield');
+
+  const name = (id: string) => { const p = players.find((x) => x.id === id); return p ? `${p.firstName} ${p.lastName}` : id; };
+  // Players on the pitch this quarter (unique).
+  const onPitch = [...new Set(outfielders.map((s) => s.playerId))];
+
+  if (!open) {
+    return (
+      <Button variant="ghost" size="sm" className="text-xs" onClick={() => setOpen(true)}>
+        <Plus className="h-3.5 w-3.5" /> Move a player mid-quarter
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 bg-amber-50 border border-amber-100 rounded-md p-2">
+      <span className="text-[10px] font-semibold text-amber-800 uppercase">Position change</span>
+      <Select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="h-8 text-xs flex-1 min-w-[110px]">
+        <option value="">Player…</option>
+        {onPitch.map((pid) => <option key={pid} value={pid}>{name(pid)}</option>)}
+      </Select>
+      <span className="text-xs text-muted-foreground">to</span>
+      <Select value={zone} onChange={(e) => setZone(e.target.value as any)} className="h-8 text-xs w-28">
+        {Object.keys(ZONE_LABEL).map((z) => <option key={z} value={z}>{ZONE_LABEL[z]}</option>)}
+      </Select>
+      <div className="flex items-center gap-1 text-xs">
+        <span className="text-muted-foreground">after</span>
+        <input
+          type="number" min={1} max={periodDuration - 1} value={minute}
+          onChange={(e) => setMinute(Math.max(1, Math.min(periodDuration - 1, Number(e.target.value))))}
+          className="w-14 h-8 rounded border px-1 text-xs"
+        />
+        <span className="text-muted-foreground">′</span>
+      </div>
+      <Button
+        size="sm" className="h-8 text-xs"
+        disabled={!playerId}
+        onClick={() => { if (playerId) { onApply(playerId, minute, ZONE_POSITION[zone]); setOpen(false); setPlayerId(''); } }}
+      >
+        Apply
+      </Button>
+      <button onClick={() => { setOpen(false); setPlayerId(''); }} className="text-muted-foreground p-1" aria-label="Cancel"><X className="h-4 w-4" /></button>
+    </div>
+  );
 }

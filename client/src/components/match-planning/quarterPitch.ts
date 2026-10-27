@@ -42,11 +42,40 @@ export function buildQuarterPitch(
   // existing player) become SEPARATE markers.
   const overlaps = (a: RawSlot, b: RawSlot) => a.startMinute < b.endMinute && b.startMinute < a.endMinute;
   const markers: { position: string; slots: RawSlot[] }[] = [];
+
+  // Pass 1: a SINGLE player who holds more than one (non-overlapping) position
+  // in the quarter — i.e. moved position mid-quarter — is ONE marker, placed at
+  // the position they FINISHED in, so the formation count stays right.
+  const byPlayer = new Map<string, RawSlot[]>();
   for (const s of outfield) {
-    const target = markers.find((m) => m.position === s.position && !m.slots.some((x) => overlaps(x, s)));
-    if (target) target.slots.push(s);
-    else markers.push({ position: s.position, slots: [s] });
+    const arr = byPlayer.get(s.playerId) ?? [];
+    arr.push(s);
+    byPlayer.set(s.playerId, arr);
   }
+  const consumed = new Set<RawSlot>();
+  for (const [, arr] of byPlayer) {
+    if (arr.length < 2) continue;
+    const positions = new Set(arr.map((s) => s.position));
+    const anyOverlap = arr.some((a, i) => arr.some((b, j) => i !== j && overlaps(a, b)));
+    // Moved position: multiple distinct positions, none overlapping in time.
+    if (positions.size > 1 && !anyOverlap) {
+      const finishPos = [...arr].sort((a, b) => b.startMinute - a.startMinute)[0].position;
+      markers.push({ position: finishPos, slots: arr });
+      arr.forEach((s) => consumed.add(s));
+    }
+  }
+
+  // Pass 2: remaining slots. Same position label + non-overlapping time = one
+  // marker (a substitution); overlapping (a Power Play extra) = separate markers.
+  // Only merge into markers created in this pass (not the "moved player" ones).
+  const pass2Markers: { position: string; slots: RawSlot[] }[] = [];
+  for (const s of outfield) {
+    if (consumed.has(s)) continue;
+    const target = pass2Markers.find((m) => m.position === s.position && !m.slots.some((x) => overlaps(x, s)));
+    if (target) target.slots.push(s);
+    else pass2Markers.push({ position: s.position, slots: [s] });
+  }
+  markers.push(...pass2Markers);
 
   // Formation string from marker counts per zone (e.g. "2-4-1" when a Power
   // Play midfielder is added to a 2-3-1).
