@@ -793,7 +793,7 @@ One-tap "Save card as image" renders the card to a canvas and downloads a PNG â€
 
 ### Role-aware headline stats
 
-The two prominent rings and the contribution bar are chosen from the player's **role**, so the card celebrates what each child actually does rather than a fixed goals-first template. Role is derived from the positions they actually play (most-played zone, not just the nominal primary) plus GK share:
+The two prominent rings and the contribution bar are chosen from the player's **role**, so the card celebrates what each child actually does rather than a fixed goals-first template. Role is derived from **minutes spent per zone** (not just which position labels appear) plus GK share. The stats service computes `minutesByZone` and a `mainRole` from `periodsDetail`, so a striker who covered 12 minutes at the back for one quarter is still classified an attacker â€” fixing an earlier bug where counting distinct position labels mislabelled a 210-minute striker (Kaeden) as a defender because he'd briefly played LB/RB. Zones:
 
 - **Attacker/winger/forward:** Goals-to-milestone ring + attacking contribution bar (goals vs assists).
 - **Midfielder:** Goal-involvements ring + clean-sheet-rate ring (balanced).

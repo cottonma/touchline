@@ -19,6 +19,8 @@ export interface PlayerSeasonStats {
   positionVariety: number;
   gkSharePct: number;
   periodsPlayed: number;
+  minutesByZone?: { defence: number; midfield: number; attack: number; gk: number };
+  mainRole?: 'defence' | 'midfield' | 'attack';
 }
 
 export interface TeamSeasonStats {

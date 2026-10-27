@@ -2,6 +2,13 @@ import { db } from '../db/index.js';
 import { goals, playingTime, matchResults, fixtures, players, seasons, matchPlans } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 
+// Position → broad zone, for minutes-weighted role classification.
+const POSITION_ZONE: Record<string, 'defence' | 'midfield' | 'attack'> = {
+  CB: 'defence', LB: 'defence', RB: 'defence', LCB: 'defence', RCB: 'defence', LWB: 'defence', RWB: 'defence',
+  CM: 'midfield', LM: 'midfield', RM: 'midfield', LCM: 'midfield', RCM: 'midfield', CDM: 'midfield', CAM: 'midfield',
+  CF: 'attack', ST: 'attack', LW: 'attack', RW: 'attack',
+};
+
 /**
  * Statistics Service - Calculates player and team statistics from recorded match data.
  * 
@@ -33,6 +40,8 @@ export interface PlayerSeasonStats {
   positionVariety: number;         // count of distinct positions
   gkSharePct: number;              // % of minutes spent in goal
   periodsPlayed: number;           // total periods featured (outfield + in goal)
+  minutesByZone: { defence: number; midfield: number; attack: number; gk: number }; // minutes per zone
+  mainRole: 'defence' | 'midfield' | 'attack'; // main OUTFIELD role by minutes
 }
 
 export interface TeamSeasonStats {
@@ -179,6 +188,26 @@ export class StatisticsService {
       }
       const positionsPlayed = [...positionSet];
 
+      // Minutes actually spent in each zone (from periodsDetail), so a player's
+      // role reflects where they MOSTLY play, not just which labels appear.
+      const minutesByZone = { defence: 0, midfield: 0, attack: 0, gk: 0 };
+      for (const pt of playerTime) {
+        if (!pt.periodsDetail) continue;
+        try {
+          const detail = JSON.parse(pt.periodsDetail) as { minutes: number; position: string; isGk: boolean }[];
+          for (const d of detail) {
+            const zone = d.isGk ? 'gk' : (POSITION_ZONE[d.position] ?? 'midfield');
+            minutesByZone[zone] += d.minutes ?? 0;
+          }
+        } catch { /* ignore malformed */ }
+      }
+      // Main OUTFIELD role by minutes (ties broken attack > midfield > defence,
+      // since a forward's identity matters most for the card framing).
+      const outfieldZones: ('attack' | 'midfield' | 'defence')[] = ['attack', 'midfield', 'defence'];
+      const mainRole = outfieldZones
+        .slice()
+        .sort((a, b) => minutesByZone[b] - minutesByZone[a])[0];
+
       return {
         playerId: player.id,
         playerName: `${player.firstName} ${player.lastName}`,
@@ -201,6 +230,8 @@ export class StatisticsService {
         positionVariety: positionsPlayed.length,
         gkSharePct: totalMinutes > 0 ? Math.round((goalkeeperMinutes / totalMinutes) * 100) : 0,
         periodsPlayed,
+        minutesByZone,
+        mainRole,
       };
     });
 

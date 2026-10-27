@@ -108,28 +108,30 @@ const POSITION_ZONE: Record<string, 'defence' | 'midfield' | 'attack' | 'gk'> = 
 type PlayerRole = 'goalkeeper' | 'defender' | 'midfielder' | 'attacker';
 
 /**
- * Decide the player's role from the positions they actually play plus their
- * data, so the card's headline stats stay relevant to each player. Uses the
- * MOST-PLAYED zone rather than only the nominal primary position.
+ * Decide the player's role so the card's headline stats stay relevant. Uses
+ * MINUTES PER ZONE (where they actually spend their time), not just which
+ * position labels appear — so a striker who covered 12 mins at the back for one
+ * quarter is still classified an attacker.
  */
-function classifyRole(primary: string, positionsPlayed: string[], gkSharePct: number): PlayerRole {
+function classifyRole(s: PlayerSeasonStats | null, primary: string): PlayerRole {
+  const gkSharePct = s?.gkSharePct ?? 0;
   // Clear goalkeeper: primary GK, or a big chunk of minutes spent in goal.
   if (primary === 'GK' || gkSharePct >= 40) return 'goalkeeper';
 
-  // Tally zones across positions actually played (fall back to primary).
-  const zones = (positionsPlayed.length ? positionsPlayed : [primary])
-    .map((p) => POSITION_ZONE[p])
-    .filter(Boolean) as ('defence' | 'midfield' | 'attack' | 'gk')[];
-  const count = { defence: 0, midfield: 0, attack: 0, gk: 0 };
-  for (const z of zones) count[z]++;
-  // Weight the nominal primary a little so it breaks ties sensibly.
-  const primaryZone = POSITION_ZONE[primary];
-  if (primaryZone) count[primaryZone] += 0.5;
+  // Preferred: minutes-weighted main role from the stats service.
+  if (s?.mainRole) {
+    return s.mainRole === 'attack' ? 'attacker' : s.mainRole === 'defence' ? 'defender' : 'midfielder';
+  }
+  if (s?.minutesByZone) {
+    const z = s.minutesByZone;
+    const top = (['attack', 'midfield', 'defence'] as const).sort((a, b) => z[b] - z[a])[0];
+    return top === 'attack' ? 'attacker' : top === 'defence' ? 'defender' : 'midfielder';
+  }
 
-  const top = (['attack', 'defence', 'midfield'] as const)
-    .sort((a, b) => count[b] - count[a])[0];
-  if (top === 'attack') return 'attacker';
-  if (top === 'defence') return 'defender';
+  // Fallback (no minutes data): use the nominal primary position's zone.
+  const primaryZone = POSITION_ZONE[primary];
+  if (primaryZone === 'attack') return 'attacker';
+  if (primaryZone === 'defence') return 'defender';
   return 'midfielder';
 }
 
@@ -292,7 +294,7 @@ export function PlayerCard({ data }: { data: PlayerCardData }) {
     : 0;
 
   // ── Role: makes the two headline stats relevant to how this player plays ──
-  const role = classifyRole(data.position, positionsPlayedList(s), s?.gkSharePct ?? 0);
+  const role = classifyRole(s, data.position);
   const roleModel = pickRoleModel(role, data.position, positionsPlayedList(s), data.playerId);
 
   // Choose the two prominent rings based on role.
