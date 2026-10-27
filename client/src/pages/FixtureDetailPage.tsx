@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { useFixture, useCancelFixture, useDeleteFixture } from '@/hooks/use-fixtures';
 import { FixtureForm } from '@/components/fixtures/FixtureForm';
+import { LineupEditor } from '@/components/fixtures/LineupEditor';
 import { api } from '@/lib/api';
 import { usePlayers } from '@/hooks/use-players';
 import { formatScoreline } from '@/lib/utils';
@@ -50,12 +51,14 @@ export function FixtureDetailPage() {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [matchRecord, setMatchRecord] = useState<any>(null);
   const [planSlots, setPlanSlots] = useState<any[] | null>(null);
+  const [periodDuration, setPeriodDuration] = useState<number>(12);
   const [editingGoals, setEditingGoals] = useState(false);
   const [goalDraft, setGoalDraft] = useState<GoalEntry[]>([]);
   const [savingGoals, setSavingGoals] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [editingLineup, setEditingLineup] = useState(false);
   const { data: players } = usePlayers();
 
   // Fetch match result for completed fixtures
@@ -72,6 +75,7 @@ export function FixtureDetailPage() {
       api.get<any>(`/match-plans/${id}`).then(res => {
         const data = res?.data ?? res ?? null;
         setPlanSlots(data?.slots ?? null);
+        if (data?.plan?.periodDurationMinutes) setPeriodDuration(Number(data.plan.periodDurationMinutes));
       }).catch(() => {});
     }
   };
@@ -349,6 +353,32 @@ export function FixtureDetailPage() {
               >
                 View Match Record
               </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => setEditingLineup((v) => !v)}
+              >
+                {editingLineup ? 'Close lineup editor' : 'Adjust lineup / add catch-up player'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Lineup editor — completed matches (catch-up players etc.) */}
+        {fixture.status === 'completed' && isMatch && editingLineup && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">Adjust lineup</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LineupEditor
+                fixtureId={fixture.id}
+                players={players ?? []}
+                periodScores={matchRecord?.result?.periodScores ? JSON.parse(matchRecord.result.periodScores) : []}
+                periodDuration={periodDuration}
+                onClose={() => setEditingLineup(false)}
+                onSaved={() => { loadMatchRecord(); loadPlan(); }}
+              />
             </CardContent>
           </Card>
         )}

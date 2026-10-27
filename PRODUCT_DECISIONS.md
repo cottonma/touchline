@@ -806,6 +806,31 @@ Insight lines and the by-the-numbers footer reorder to lead with the role's rele
 
 Each card suggests a professional footballer as a **role model to learn from** (never "you are the next X"). Curated, all-male pools of 5 per position group (GK, defence, full-back, midfield, winger, forward) with a short skill/attitude-focused "watch how…" tip. The pick is deterministic per player (hashed from player id) so teammates in the same role don't all get the same name, and it's driven by the same role classification as the headline stats. Fully curated in code so the club controls exactly who appears — no external API, no AI, works offline.
 
+## Catch-up players (grassroots retreat rule)
+
+Grassroots leagues let a team that falls a long way behind add extra outfield players to even the game up. Touchline now supports recording this after a match.
+
+### The rule (advisory, not enforced)
+
+- 4+ goals behind → 1 extra outfield player allowed.
+- 6+ goals behind → a 2nd extra allowed.
+- Deficit back to 3 → remove the 1st extra; back to 5 → remove the 2nd.
+- Always an extra **outfielder** (never a second keeper). The coach decides on the day; the app only advises based on the recorded quarter scores.
+
+### How it's modelled
+
+An extra player is just another `match_plan_slots` row for the relevant quarter, with its own start/end minute (same mechanism as a substitution). No schema change was needed — the slot model already supports arbitrary positions and part-period minutes, and `period_formations` already allows per-quarter formation variance. Each extra player is recorded in a zone (defence/midfield/attack → stored as CB/CM/CF) so stats stay position-aware; the coach can place them anywhere.
+
+### Keeping data accurate
+
+A new `recalculatePlayingTime(fixtureId)` method (and `POST /match-plans/:fixtureId/recalculate` route) recomputes `playing_time` from the current slots **without** touching the score, goals, coach notes or POTM. It upserts changed rows and removes playing-time rows for players no longer in any slot, then re-runs the badge check (repeatable badges are unique per fixture, so this is idempotent). The minute-calc logic was extracted into a shared `rebuildPlayingTimeFromSlots` helper used by both `completeMatch` and the recalc path. Verified end-to-end against a live game with a self-reverting test: adding a 6-minute Q4 extra credited exactly 6 minutes and restored perfectly on removal.
+
+### UI
+
+On a completed match's detail page, "Adjust lineup / add catch-up player" opens a per-quarter editor. Each quarter shows the current lineup, the deficit at that point and how many extras the rule allows, and lets the coach add up to 2 extra players (player, zone, minute-on). Saving writes the slots and triggers the recalculation. A live Match Day warning to prompt the coach to add an extra player when they go 4/6 behind is the planned next step.
+
+---
+
 ## Quarter-by-quarter match review
 
 Completed matches now show a **quarter-by-quarter breakdown** on the fixture detail page, so a coach can review exactly how a past game was set up and use it to plan future ones. For each quarter it shows the full lineup (position tags, GK highlighted), flags any player who was subbed within the quarter (start–end minute), the quarter score (shown home–away), and the goals and assists scored in that quarter. Built from the saved `match_plan_slots` (per-period lineup), `goals` (which carry a period), and `match_results.periodScores`. No new endpoints — reuses `GET /match-plans/:fixtureId` for slots alongside the existing match-day record. Read-only review; editing the lineup after completion is still a possible future addition.

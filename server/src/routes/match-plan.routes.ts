@@ -241,6 +241,18 @@ router.post('/:fixtureId/complete', asyncHandler(async (req, res) => {
   res.json({ data: result.data });
 }));
 
+// Recalculate playing time from current slots (after editing a completed match's
+// lineup, e.g. adding catch-up players). Does not change score/goals/notes.
+router.post('/:fixtureId/recalculate', asyncHandler(async (req, res) => {
+  const fixtureId = req.params.fixtureId as string;
+  const result = await matchCompletionService.recalculatePlayingTime(fixtureId);
+  if (!result.success) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json({ data: result.data });
+}));
+
 // Update goalscorers for a fixture (add/correct after completion) — does not change scores or minutes
 router.put('/:fixtureId/goals', asyncHandler(async (req, res) => {
   const fixtureId = req.params.fixtureId as string;

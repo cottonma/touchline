@@ -29,6 +29,116 @@ export interface CompleteMatchInput {
 
 export class MatchCompletionService {
   /**
+   * Recalculate playing_time for a fixture from its current plan slots, without
+   * touching the score, goals, coach notes or POTM. Used after editing a
+   * completed match's lineup (e.g. adding catch-up players). Re-checks badges.
+   */
+  async recalculatePlayingTime(fixtureId: string) {
+    const [plan] = await db.select().from(matchPlans).where(eq(matchPlans.fixtureId, fixtureId)).limit(1);
+    if (!plan) {
+      return { success: false, error: 'No match plan found for this fixture.' };
+    }
+
+    await this.rebuildPlayingTimeFromSlots(fixtureId, plan.id);
+
+    // Re-check badges (idempotent — repeatable badges are unique per fixture).
+    try {
+      const [fixture] = await db.select().from(fixtures).where(eq(fixtures.id, fixtureId)).limit(1);
+      let clubId: string | undefined = plan.clubId ?? undefined;
+      if (!clubId && fixture) {
+        const [season] = await db.select().from(seasons).where(eq(seasons.id, fixture.seasonId)).limit(1);
+        clubId = season?.clubId;
+      }
+      await badgeService.checkAutoBadges(fixtureId, clubId);
+    } catch (err) {
+      console.error('[recalculatePlayingTime] badge check failed', err);
+    }
+
+    const rows = await db.select().from(playingTime).where(eq(playingTime.fixtureId, fixtureId));
+    return { success: true, data: { playersRecorded: rows.length } };
+  }
+
+  /**
+   * Shared helper: compute per-player minutes from the plan's slots and upsert
+   * playing_time rows. Does not touch score/goals. Removes stale playing-time
+   * rows for players no longer in any slot.
+   */
+  private async rebuildPlayingTimeFromSlots(fixtureId: string, planId: string) {
+    const slots = await db.select().from(matchPlanSlots).where(eq(matchPlanSlots.matchPlanId, planId));
+
+    const playerStats = new Map<string, {
+      outfieldMinutes: number;
+      goalkeeperMinutes: number;
+      totalMinutes: number;
+      periodsPlayed: number;
+      periodsInGoal: number;
+      positionsPlayed: Set<string>;
+      periodsDetail: { period: number; minutes: number; position: string; isGk: boolean }[];
+    }>();
+
+    for (const slot of slots) {
+      const minutes = slot.endMinute - slot.startMinute;
+      if (minutes <= 0) continue;
+
+      const existing = playerStats.get(slot.playerId) ?? {
+        outfieldMinutes: 0,
+        goalkeeperMinutes: 0,
+        totalMinutes: 0,
+        periodsPlayed: 0,
+        periodsInGoal: 0,
+        positionsPlayed: new Set<string>(),
+        periodsDetail: [],
+      };
+
+      if (slot.isGk) {
+        existing.goalkeeperMinutes += minutes;
+        existing.periodsInGoal++;
+      } else {
+        existing.outfieldMinutes += minutes;
+      }
+      existing.totalMinutes += minutes;
+      existing.positionsPlayed.add(slot.position);
+      existing.periodsDetail.push({ period: slot.period, minutes, position: slot.position, isGk: slot.isGk });
+      existing.periodsPlayed = new Set(existing.periodsDetail.map(d => d.period)).size;
+
+      playerStats.set(slot.playerId, existing);
+    }
+
+    const now = new Date().toISOString();
+
+    // Remove playing-time rows for players no longer present in any slot.
+    const currentRows = await db.select().from(playingTime).where(eq(playingTime.fixtureId, fixtureId));
+    for (const row of currentRows) {
+      if (!playerStats.has(row.playerId)) {
+        await db.delete(playingTime).where(eq(playingTime.id, row.id));
+      }
+    }
+
+    for (const [playerId, stats] of playerStats) {
+      const [existing] = await db.select().from(playingTime)
+        .where(and(eq(playingTime.fixtureId, fixtureId), eq(playingTime.playerId, playerId)))
+        .limit(1);
+
+      const record = {
+        outfieldMinutes: Math.round(stats.outfieldMinutes),
+        goalkeeperMinutes: Math.round(stats.goalkeeperMinutes),
+        totalMinutes: Math.round(stats.totalMinutes),
+        periodsPlayed: stats.periodsPlayed,
+        periodsInGoal: stats.periodsInGoal,
+        positionsPlayed: JSON.stringify([...stats.positionsPlayed]),
+        periodsDetail: JSON.stringify(stats.periodsDetail),
+        updatedAt: now,
+      };
+
+      if (existing) {
+        await db.update(playingTime).set(record).where(eq(playingTime.id, existing.id));
+      } else {
+        await db.insert(playingTime).values({ id: nanoid(), fixtureId, playerId, ...record, createdAt: now });
+      }
+    }
+  }
+
+  /**
    * Complete a match: calculate minutes from plan slots and persist everything.
    */
   async completeMatch(input: CompleteMatchInput) {
