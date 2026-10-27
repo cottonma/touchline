@@ -806,9 +806,9 @@ Insight lines and the by-the-numbers footer reorder to lead with the role's rele
 
 Each card suggests a professional footballer as a **role model to learn from** (never "you are the next X"). Curated, all-male pools of 5 per position group (GK, defence, full-back, midfield, winger, forward) with a short skill/attitude-focused "watch how…" tip. The pick is deterministic per player (hashed from player id) so teammates in the same role don't all get the same name, and it's driven by the same role classification as the headline stats. Fully curated in code so the club controls exactly who appears — no external API, no AI, works offline.
 
-## Catch-up players (grassroots retreat rule)
+## Power Play players (grassroots catch-up rule)
 
-Grassroots leagues let a team that falls a long way behind add extra outfield players to even the game up. Touchline now supports recording this after a match.
+Grassroots leagues let a team that falls a long way behind add extra outfield players ("Power Play" players) to even the game up. Touchline now supports recording this after a match.
 
 ### The rule (advisory, not enforced)
 
@@ -827,13 +827,17 @@ A new `recalculatePlayingTime(fixtureId)` method (and `POST /match-plans/:fixtur
 
 ### UI
 
-On a completed match's detail page, "Adjust lineup / add catch-up player" opens a per-quarter editor. Each quarter shows the current lineup, the deficit at that point and how many extras the rule allows, and lets the coach add up to 2 extra players (player, zone, minute-on). Saving writes the slots and triggers the recalculation. A live Match Day warning to prompt the coach to add an extra player when they go 4/6 behind is the planned next step.
+On a completed match's detail page, "Adjust lineup / add Power Play player" opens a per-quarter editor. Each quarter renders as a **pitch graphic** (green grass + player circles, the same `PitchView` used in team selection) rather than a text list, so it reads at a glance. Power Play players appear as extra circles on the pitch. Below each pitch, controls show the deficit, how many extras the rule allows, and let the coach add up to 2 Power Play players (player, zone, minute-on). Saving writes the slots and triggers the recalculation. A live Match Day warning to prompt the coach to add a Power Play player when they go 4/6 behind is the planned next step.
+
+### Shared pitch-from-slots helper
+
+`buildQuarterPitch(periodSlots, players)` (in `match-planning/quarterPitch.ts`) converts a quarter's saved slots into a `{ formation, pitchSlots }` pair for `PitchView`. Crucially it **derives the formation from the actual slots** (grouping outfield positions into def/mid/att zones), so extra Power Play players produce a larger formation (e.g. 2-3-1 → 2-4-1) and render correctly. Same-position players are one marker when their times don't overlap (a substitution) and separate markers when they do (a genuine extra on the pitch at the same time). Used by both the quarter-by-quarter review and the lineup editor.
 
 ---
 
 ## Quarter-by-quarter match review
 
-Completed matches now show a **quarter-by-quarter breakdown** on the fixture detail page, so a coach can review exactly how a past game was set up and use it to plan future ones. For each quarter it shows the full lineup (position tags, GK highlighted), flags any player who was subbed within the quarter (start–end minute), the quarter score (shown home–away), and the goals and assists scored in that quarter. Built from the saved `match_plan_slots` (per-period lineup), `goals` (which carry a period), and `match_results.periodScores`. No new endpoints — reuses `GET /match-plans/:fixtureId` for slots alongside the existing match-day record. Read-only review; editing the lineup after completion is still a possible future addition.
+Completed matches now show a **quarter-by-quarter breakdown** on the fixture detail page, so a coach can review exactly how a past game was set up and use it to plan future ones. Each quarter renders as a **pitch graphic** (green grass + player circles, the same `PitchView` as team selection, via the shared `buildQuarterPitch` helper) including any Power Play players, alongside the quarter score (shown home–away) and the goals and assists scored in that quarter. Built from the saved `match_plan_slots` (per-period lineup), `goals` (which carry a period), and `match_results.periodScores`. No new endpoints — reuses `GET /match-plans/:fixtureId` for slots alongside the existing match-day record. Read-only review.
 
 ---
 

@@ -8,6 +8,8 @@ import { Select } from '@/components/ui/select';
 import { useFixture, useCancelFixture, useDeleteFixture } from '@/hooks/use-fixtures';
 import { FixtureForm } from '@/components/fixtures/FixtureForm';
 import { LineupEditor } from '@/components/fixtures/LineupEditor';
+import { PitchView } from '@/components/match-planning/PitchView';
+import { buildQuarterPitch } from '@/components/match-planning/quarterPitch';
 import { api } from '@/lib/api';
 import { usePlayers } from '@/hooks/use-players';
 import { formatScoreline } from '@/lib/utils';
@@ -358,7 +360,7 @@ export function FixtureDetailPage() {
                 className="w-full justify-start"
                 onClick={() => setEditingLineup((v) => !v)}
               >
-                {editingLineup ? 'Close lineup editor' : 'Adjust lineup / add catch-up player'}
+                {editingLineup ? 'Close lineup editor' : 'Adjust lineup / add Power Play player'}
               </Button>
             </CardContent>
           </Card>
@@ -597,18 +599,10 @@ interface GoalRow { scorerId: string; assistId?: string; assistPlayerId?: string
 interface PeriodScore { period: number; goalsFor: number; goalsAgainst: number }
 interface PlayerLite { id: string; firstName: string; lastName: string }
 
-// Order positions sensibly: GK, defence, midfield, attack.
-const POSITION_ORDER: Record<string, number> = {
-  GK: 0,
-  LB: 1, LCB: 1, CB: 1, RCB: 1, RB: 1, LWB: 1, RWB: 1,
-  LM: 2, LCM: 2, CM: 2, CDM: 2, CAM: 2, RCM: 2, RM: 2,
-  LW: 3, CF: 3, ST: 3, RW: 3,
-};
-
 /**
- * Per-quarter review of a completed match: who played where in each quarter
- * (noting substitutions within the quarter), the quarter score, and the goals
- * and assists scored in that quarter. Built from the saved match-plan slots.
+ * Per-quarter review of a completed match, shown as a pitch graphic per quarter
+ * (green grass + player circles, same as team selection), including any Power
+ * Play players. Plus the quarter score and the goals/assists in that quarter.
  */
 function QuarterBreakdown({ slots, goals, periodScores, players, homeAway, opponent }: {
   slots: Slot[];
@@ -623,31 +617,39 @@ function QuarterBreakdown({ slots, goals, periodScores, players, homeAway, oppon
     return p ? `${p.firstName} ${p.lastName}` : 'Unknown';
   };
 
+  // availablePlayers for PitchView fit colouring (minimal shape is fine).
+  const availablePlayers = players as any[];
+
   const periods = [...new Set(slots.map((s) => s.period))].sort((a, b) => a - b);
-  const maxEnd = Math.max(...slots.map((s) => s.endMinute), 0);
 
   return (
-    <div className="space-y-5">
+    <div className="grid gap-4 sm:grid-cols-2">
       {periods.map((period) => {
-        const periodSlots = [...slots.filter((s) => s.period === period)].sort(
-          (a, b) => (POSITION_ORDER[a.position] ?? 9) - (POSITION_ORDER[b.position] ?? 9) || a.startMinute - b.startMinute
+        const periodSlots = slots.filter((s) => s.period === period);
+        const { formation, pitchSlots } = buildQuarterPitch(periodSlots, players);
+        const baseOutfield = Math.min(
+          ...periods.map((p) => slots.filter((s) => s.period === p && !s.isGk).length).filter((n) => n > 0)
         );
+        const outfield = periodSlots.filter((s) => !s.isGk).length;
+        const powerPlay = isFinite(baseOutfield) ? Math.max(0, outfield - baseOutfield) : 0;
+
         const score = periodScores.find((p) => p.period === period);
         const periodGoals = goals.filter((g) => g.period === period);
-        // A slot is a partial (substitution) if it doesn't span the whole quarter.
-        const isPartial = (s: Slot) => s.startMinute > 0 || (maxEnd > 0 && s.endMinute < maxEnd);
-
-        // Our-team score for the quarter, shown home–away for clarity.
         const quarterScore = score
-          ? (homeAway === 'away'
-              ? `${score.goalsAgainst}–${score.goalsFor}`
-              : `${score.goalsFor}–${score.goalsAgainst}`)
+          ? (homeAway === 'away' ? `${score.goalsAgainst}–${score.goalsFor}` : `${score.goalsFor}–${score.goalsAgainst}`)
           : null;
 
         return (
           <div key={period} className="rounded-lg border p-3">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-sm">Quarter {period}</h4>
+              <h4 className="font-semibold text-sm">
+                Quarter {period}
+                {powerPlay > 0 && (
+                  <span className="ml-2 text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-1.5 py-0.5">
+                    +{powerPlay} Power Play
+                  </span>
+                )}
+              </h4>
               {quarterScore && (
                 <span className="text-xs text-muted-foreground">
                   {homeAway === 'away' ? (opponent ?? 'Them') : 'Us'} {quarterScore} {homeAway === 'away' ? 'Us' : (opponent ?? 'Them')}
@@ -655,20 +657,8 @@ function QuarterBreakdown({ slots, goals, periodScores, players, homeAway, oppon
               )}
             </div>
 
-            {/* Lineup */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-              {periodSlots.map((s, i) => (
-                <div key={i} className="flex items-center gap-1.5 text-xs">
-                  <span className={`inline-flex items-center justify-center w-9 shrink-0 rounded px-1 py-0.5 font-bold ${s.isGk ? 'bg-yellow-100 text-yellow-800' : 'bg-muted text-foreground'}`}>
-                    {s.position}
-                  </span>
-                  <span className="truncate">{name(s.playerId)}</span>
-                  {isPartial(s) && (
-                    <span className="text-[10px] text-muted-foreground shrink-0">{s.startMinute}–{s.endMinute}′</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            {/* Pitch graphic */}
+            <PitchView formation={formation} slots={pitchSlots} availablePlayers={availablePlayers} />
 
             {/* Goals this quarter */}
             {periodGoals.length > 0 && (
