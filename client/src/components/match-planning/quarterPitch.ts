@@ -2,9 +2,14 @@ import { getFormationSlots, type PitchSlot } from './PitchView';
 
 /**
  * Build a pitch rendering (formation + positioned slots with segments) for a
- * single period from its saved match-plan slots. Unlike the planning page,
- * this derives the FORMATION from the actual slots on the pitch, so extra
- * "Power Play" players (outfielders beyond the base formation) are shown too.
+ * single period from its saved match-plan slots. The formation is derived from
+ * the actual positions on the pitch so extra "Power Play" players are shown.
+ *
+ * IMPORTANT: positions are matched to pitch coordinates by their EXACT label
+ * (LB, RM, CF…), identical to the team-selection page, so left/right/centre are
+ * always preserved. Any player whose position label isn't in the generated
+ * formation (e.g. a Power Play extra sharing a zone) is placed on the next free
+ * coordinate in the same zone.
  */
 
 export interface RawSlot {
@@ -23,10 +28,6 @@ const ZONE_OF: Record<string, 'def' | 'mid' | 'att'> = {
   CF: 'att', ST: 'att', LW: 'att', RW: 'att',
 };
 
-/**
- * Collapse a period's raw slots into one entry per (position, player-set),
- * grouping multiple time-segments on the same position into a segments array.
- */
 export function buildQuarterPitch(
   periodSlots: RawSlot[],
   players: PlayerLite[],
@@ -36,70 +37,82 @@ export function buildQuarterPitch(
   const outfield = periodSlots.filter((s) => !s.isGk);
 
   // Group outfield slots into pitch markers. Slots sharing a position label are
-  // the SAME marker only if their times don't overlap (i.e. a substitution);
-  // if two players hold the same label at the same time (e.g. a Power Play
-  // extra CM alongside an existing CM), they become SEPARATE markers.
+  // the SAME marker only when their times don't overlap (a substitution); two
+  // players on the same label at the same time (a Power Play extra alongside an
+  // existing player) become SEPARATE markers.
   const overlaps = (a: RawSlot, b: RawSlot) => a.startMinute < b.endMinute && b.startMinute < a.endMinute;
   const markers: { position: string; slots: RawSlot[] }[] = [];
   for (const s of outfield) {
-    const target = markers.find(
-      (m) => m.position === s.position && !m.slots.some((x) => overlaps(x, s)),
-    );
+    const target = markers.find((m) => m.position === s.position && !m.slots.some((x) => overlaps(x, s)));
     if (target) target.slots.push(s);
     else markers.push({ position: s.position, slots: [s] });
   }
 
-  // Count markers per zone → formation string (e.g. "2-4-1").
+  // Formation string from marker counts per zone (e.g. "2-4-1" when a Power
+  // Play midfielder is added to a 2-3-1).
   const zoneCounts = { def: 0, mid: 0, att: 0 };
-  for (const m of markers) {
-    const z = ZONE_OF[m.position] ?? 'mid';
-    zoneCounts[z]++;
-  }
+  for (const m of markers) zoneCounts[ZONE_OF[m.position] ?? 'mid']++;
+  const formation = [zoneCounts.def, zoneCounts.mid, zoneCounts.att].filter((n) => n > 0).join('-') || '1-1-1';
 
-  const formation = [zoneCounts.def || 0, zoneCounts.mid || 0, zoneCounts.att || 0]
-    .filter((n) => n > 0)
-    .join('-') || '1-1-1';
-
-  // Generate formation slots, then assign our actual positions onto them by zone.
   const formSlots = getFormationSlots(formation);
 
-  // Build the list of real pitch positions grouped by zone, preserving label.
-  const realByZone: Record<'def' | 'mid' | 'att', { position: string; slots: RawSlot[] }[]> = { def: [], mid: [], att: [] };
-  for (const m of markers) {
-    const z = ZONE_OF[m.position] ?? 'mid';
-    realByZone[z].push({ position: m.position, slots: m.slots });
-  }
-
-  // Walk the generated formation slots and fill them from the real zone buckets.
-  const zoneCursor = { def: 0, mid: 0, att: 0 };
-  const pitchSlots: PitchSlot[] = formSlots.map((fs) => {
-    if (fs.isGk) {
-      const gk = periodSlots.find((s) => s.isGk);
-      if (!gk) return fs;
-      return {
-        ...fs,
-        playerId: gk.playerId,
-        playerName: name(gk.playerId),
-        isGk: true,
-      };
-    }
-    const z = (ZONE_OF[fs.position] ?? 'mid') as 'def' | 'mid' | 'att';
-    const bucket = realByZone[z];
-    const real = bucket[zoneCursor[z]++];
-    if (!real) return fs;
-
-    const segments = real.slots
+  const toSegments = (slots: RawSlot[]) =>
+    slots
       .sort((a, b) => a.startMinute - b.startMinute)
       .map((s) => ({ playerId: s.playerId, playerName: name(s.playerId), startMinute: s.startMinute, endMinute: s.endMinute, isGk: false }));
 
-    return {
+  const pitchSlots: PitchSlot[] = [];
+  const usedMarkers = new Set<number>();
+
+  // 1) Match each formation coordinate to a marker with the SAME position label.
+  for (const fs of formSlots) {
+    if (fs.isGk) {
+      const gk = periodSlots.find((s) => s.isGk);
+      pitchSlots.push(gk ? { ...fs, playerId: gk.playerId, playerName: name(gk.playerId), isGk: true } : fs);
+      continue;
+    }
+    const mi = markers.findIndex((m, i) => !usedMarkers.has(i) && m.position === fs.position);
+    if (mi === -1) { pitchSlots.push(fs); continue; }
+    usedMarkers.add(mi);
+    const m = markers[mi];
+    const segs = toSegments(m.slots);
+    pitchSlots.push({
       ...fs,
-      position: real.position, // show the real position label (LB, CM, CF…)
-      playerId: real.slots[0].playerId,
-      playerName: name(real.slots[0].playerId),
-      segments: segments.length > 1 ? segments : undefined,
-    };
-  });
+      position: m.position,
+      playerId: m.slots[0].playerId,
+      playerName: name(m.slots[0].playerId),
+      segments: segs.length > 1 ? segs : undefined,
+    });
+  }
+
+  // 2) Any marker not matched by exact label (e.g. a Power Play extra labelled
+  //    CM when the base formation's CM coordinate is already taken) is placed on
+  //    the next free coordinate in the same zone.
+  for (let i = 0; i < markers.length; i++) {
+    if (usedMarkers.has(i)) continue;
+    const m = markers[i];
+    const zone = ZONE_OF[m.position] ?? 'mid';
+    const free = pitchSlots.find((ps) => !ps.isGk && !ps.playerId && (ZONE_OF[ps.position] ?? 'mid') === zone);
+    const segs = toSegments(m.slots);
+    if (free) {
+      free.position = m.position;
+      free.playerId = m.slots[0].playerId;
+      free.playerName = name(m.slots[0].playerId);
+      free.segments = segs.length > 1 ? segs : undefined;
+    } else {
+      // No free coordinate — append a marker at a sensible spot for the zone.
+      const y = zone === 'def' ? 75 : zone === 'mid' ? 50 : 25;
+      pitchSlots.push({
+        id: `extra-${m.position}-${i}`,
+        position: m.position,
+        x: 50,
+        y,
+        playerId: m.slots[0].playerId,
+        playerName: name(m.slots[0].playerId),
+        segments: segs.length > 1 ? segs : undefined,
+      });
+    }
+  }
 
   return { formation, pitchSlots };
 }
