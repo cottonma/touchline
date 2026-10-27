@@ -49,6 +49,7 @@ export function FixtureDetailPage() {
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [matchRecord, setMatchRecord] = useState<any>(null);
+  const [planSlots, setPlanSlots] = useState<any[] | null>(null);
   const [editingGoals, setEditingGoals] = useState(false);
   const [goalDraft, setGoalDraft] = useState<GoalEntry[]>([]);
   const [savingGoals, setSavingGoals] = useState(false);
@@ -66,9 +67,19 @@ export function FixtureDetailPage() {
     }
   };
 
+  const loadPlan = () => {
+    if (id) {
+      api.get<any>(`/match-plans/${id}`).then(res => {
+        const data = res?.data ?? res ?? null;
+        setPlanSlots(data?.slots ?? null);
+      }).catch(() => {});
+    }
+  };
+
   useEffect(() => {
     if (fixture?.status === 'completed' && id) {
       loadMatchRecord();
+      loadPlan();
     }
   }, [fixture?.status, id]);
 
@@ -483,6 +494,25 @@ export function FixtureDetailPage() {
           </Card>
         )}
 
+        {/* Quarter-by-quarter breakdown — completed matches */}
+        {fixture.status === 'completed' && isMatch && planSlots && planSlots.length > 0 && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">Quarter-by-quarter</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <QuarterBreakdown
+                slots={planSlots}
+                goals={matchRecord?.goals ?? []}
+                periodScores={matchRecord?.result?.periodScores ? JSON.parse(matchRecord.result.periodScores) : []}
+                players={players ?? []}
+                homeAway={fixture.homeAway}
+                opponent={fixture.opponent}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Notes */}
         {fixture.notes && (
           <Card className="md:col-span-2">
@@ -523,4 +553,111 @@ function formatFullDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+interface Slot {
+  period: number;
+  playerId: string;
+  position: string;
+  isGk: boolean;
+  startMinute: number;
+  endMinute: number;
+}
+interface GoalRow { scorerId: string; assistId?: string; assistPlayerId?: string; period?: number | null; minute?: number | null }
+interface PeriodScore { period: number; goalsFor: number; goalsAgainst: number }
+interface PlayerLite { id: string; firstName: string; lastName: string }
+
+// Order positions sensibly: GK, defence, midfield, attack.
+const POSITION_ORDER: Record<string, number> = {
+  GK: 0,
+  LB: 1, LCB: 1, CB: 1, RCB: 1, RB: 1, LWB: 1, RWB: 1,
+  LM: 2, LCM: 2, CM: 2, CDM: 2, CAM: 2, RCM: 2, RM: 2,
+  LW: 3, CF: 3, ST: 3, RW: 3,
+};
+
+/**
+ * Per-quarter review of a completed match: who played where in each quarter
+ * (noting substitutions within the quarter), the quarter score, and the goals
+ * and assists scored in that quarter. Built from the saved match-plan slots.
+ */
+function QuarterBreakdown({ slots, goals, periodScores, players, homeAway, opponent }: {
+  slots: Slot[];
+  goals: GoalRow[];
+  periodScores: PeriodScore[];
+  players: PlayerLite[];
+  homeAway?: string | null;
+  opponent?: string | null;
+}) {
+  const name = (pid: string | null | undefined) => {
+    const p = players.find((x) => x.id === pid);
+    return p ? `${p.firstName} ${p.lastName}` : 'Unknown';
+  };
+
+  const periods = [...new Set(slots.map((s) => s.period))].sort((a, b) => a - b);
+  const maxEnd = Math.max(...slots.map((s) => s.endMinute), 0);
+
+  return (
+    <div className="space-y-5">
+      {periods.map((period) => {
+        const periodSlots = [...slots.filter((s) => s.period === period)].sort(
+          (a, b) => (POSITION_ORDER[a.position] ?? 9) - (POSITION_ORDER[b.position] ?? 9) || a.startMinute - b.startMinute
+        );
+        const score = periodScores.find((p) => p.period === period);
+        const periodGoals = goals.filter((g) => g.period === period);
+        // A slot is a partial (substitution) if it doesn't span the whole quarter.
+        const isPartial = (s: Slot) => s.startMinute > 0 || (maxEnd > 0 && s.endMinute < maxEnd);
+
+        // Our-team score for the quarter, shown home–away for clarity.
+        const quarterScore = score
+          ? (homeAway === 'away'
+              ? `${score.goalsAgainst}–${score.goalsFor}`
+              : `${score.goalsFor}–${score.goalsAgainst}`)
+          : null;
+
+        return (
+          <div key={period} className="rounded-lg border p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-semibold text-sm">Quarter {period}</h4>
+              {quarterScore && (
+                <span className="text-xs text-muted-foreground">
+                  {homeAway === 'away' ? (opponent ?? 'Them') : 'Us'} {quarterScore} {homeAway === 'away' ? 'Us' : (opponent ?? 'Them')}
+                </span>
+              )}
+            </div>
+
+            {/* Lineup */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              {periodSlots.map((s, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-xs">
+                  <span className={`inline-flex items-center justify-center w-9 shrink-0 rounded px-1 py-0.5 font-bold ${s.isGk ? 'bg-yellow-100 text-yellow-800' : 'bg-muted text-foreground'}`}>
+                    {s.position}
+                  </span>
+                  <span className="truncate">{name(s.playerId)}</span>
+                  {isPartial(s) && (
+                    <span className="text-[10px] text-muted-foreground shrink-0">{s.startMinute}–{s.endMinute}′</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Goals this quarter */}
+            {periodGoals.length > 0 && (
+              <div className="mt-3 pt-2 border-t space-y-1">
+                {periodGoals.map((g, i) => {
+                  const assistId = g.assistId || g.assistPlayerId;
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span>⚽</span>
+                      <span className="font-medium">{name(g.scorerId)}</span>
+                      {assistId && <span className="text-muted-foreground">(assist: {name(assistId)})</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

@@ -806,7 +806,13 @@ Insight lines and the by-the-numbers footer reorder to lead with the role's rele
 
 Each card suggests a professional footballer as a **role model to learn from** (never "you are the next X"). Curated, all-male pools of 5 per position group (GK, defence, full-back, midfield, winger, forward) with a short skill/attitude-focused "watch how…" tip. The pick is deterministic per player (hashed from player id) so teammates in the same role don't all get the same name, and it's driven by the same role classification as the headline stats. Fully curated in code so the club controls exactly who appears — no external API, no AI, works offline.
 
-### Points journey graph
+## Quarter-by-quarter match review
+
+Completed matches now show a **quarter-by-quarter breakdown** on the fixture detail page, so a coach can review exactly how a past game was set up and use it to plan future ones. For each quarter it shows the full lineup (position tags, GK highlighted), flags any player who was subbed within the quarter (start–end minute), the quarter score (shown home–away), and the goals and assists scored in that quarter. Built from the saved `match_plan_slots` (per-period lineup), `goals` (which carry a period), and `match_results.periodScores`. No new endpoints — reuses `GET /match-plans/:fixtureId` for slots alongside the existing match-day record. Read-only review; editing the lineup after completion is still a possible future addition.
+
+---
+
+## Points journey graph
 
 Below the card, a **cumulative trophy-points line chart** (recharts, already a dependency) shows how a player's total has grown game by game. Built entirely from the player's badges: each badge carries `points`, `createdAt` and (usually) a `fixtureId`, so badges are grouped into events — by fixture when linked (labelled "v Opponent" via the fixtures list), otherwise by the day awarded for coach character badges. Events are ordered by date and plotted as a running total. Needs at least two events to render. Appears automatically wherever the card shows (coach Statistics → Cards, and the Parent Portal), so parents can see their child's progress climbing. Purely motivational — it charts points earned, never a rating or ranking.
 
