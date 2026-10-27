@@ -174,11 +174,14 @@ export function LineupEditor({
   };
 
   const save = async () => {
-    if (slots.some((s) => !s.playerId)) { setError('Every added player needs to be selected.'); return; }
+    // Drop any blank/incomplete slots (e.g. an "Add Power Play player" row that
+    // was never filled, or a zero-length split) rather than blocking the save.
+    const clean = slots.filter((s) => s.playerId && s.endMinute > s.startMinute);
+    if (clean.length === 0) { setError('There are no players to save.'); return; }
     setSaving(true); setError(null);
     try {
       await api.put(`/match-plans/${fixtureId}/slots`, {
-        slots: slots.map((s) => ({
+        slots: clean.map((s) => ({
           period: s.period, playerId: s.playerId, position: s.position,
           isGk: s.isGk, startMinute: s.startMinute, endMinute: s.endMinute,
         })),
