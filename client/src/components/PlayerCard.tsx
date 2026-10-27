@@ -678,7 +678,35 @@ async function downloadCardImage(
   crestUrl: string | null,
   roleModel: { name: string; watch: string },
 ) {
-  const W = 620, H = 900;
+  const W = 620;
+  const padE = 44;
+
+  // Estimate the trophy-cabinet height (badges wrap across rows). Rough measure
+  // so the canvas is tall enough; precise layout happens during drawing.
+  const estimateCabinetRows = () => {
+    if (badges.length === 0) return 0;
+    // Approx chip width ~ label length * 7 + 20; wrap at W - 2*pad.
+    const maxRowW = W - padE * 2;
+    let rowW = 0, rows = 1;
+    for (const b of badges) {
+      const label = `🥇 ${b.title}${b.count > 1 ? ` x${b.count}` : ''}`;
+      const w = label.length * 7.5 + 20 + 8;
+      if (rowW + w > maxRowW) { rows++; rowW = w; } else { rowW += w; }
+    }
+    return rows;
+  };
+
+  // Build up the dynamic height from the flowing sections.
+  let estH = padE + 110 + 120;          // header + avatar + up to rings start
+  estH += 96 + 20;                       // rings panel
+  if (a.showDefensiveBar || a.showAttackingBar) estH += 70; // contribution bar
+  estH += a.insights.length * 40 + 4;    // insight lines
+  if (positions.length > 0) estH += 68;  // positions
+  if (badges.length > 0) estH += 24 + estimateCabinetRows() * 34 + 24; // cabinet
+  estH += 72;                            // player to watch
+  estH += 24 + 48 + 30 + padE;           // numbers divider + numbers + footer + pad
+
+  const H = Math.max(900, Math.ceil(estH));
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
@@ -927,10 +955,12 @@ async function downloadCardImage(
     y += 72;
   }
 
-  // By the numbers (fixed near the bottom)
-  const numY = H - pad - 70;
+  // By the numbers — flows directly after the player-to-watch block so it can
+  // never overlap. Divider, then the stat columns.
+  y += 8;
+  const numY = y + 14;
   ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(pad, numY - 12); ctx.lineTo(W - pad, numY - 12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
   const colW = (W - pad * 2) / a.numbers.length;
   a.numbers.forEach((n, i) => {
     const cx = pad + colW * i + colW / 2;
@@ -943,13 +973,15 @@ async function downloadCardImage(
     ctx.fillText(n.label.toUpperCase(), cx, numY + 26);
   });
   ctx.textAlign = 'left';
+  y = numY + 26 + 24;
 
-  // Footer
+  // Footer at the very bottom of the (dynamic) card.
+  const footerY = Math.max(y, H - pad);
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText('⚽ TOUCHLINE', pad, H - pad);
+  ctx.fillText('⚽ TOUCHLINE', pad, footerY);
   ctx.textAlign = 'right';
-  ctx.fillText(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), W - pad, H - pad);
+  ctx.fillText(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), W - pad, footerY);
   ctx.textAlign = 'left';
 
   // Download
